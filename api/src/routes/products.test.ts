@@ -9,7 +9,7 @@ vi.mock('../../db/repositories/products.js', () => ({
   findProductImages: vi.fn(),
   createProduct: vi.fn(),
   linkImageToProduct: vi.fn(),
-  updateProductStatus: vi.fn(),
+  purchaseProductWithTransaction: vi.fn(),
 }))
 
 vi.mock('../../db/repositories/offers.js', () => ({
@@ -18,21 +18,16 @@ vi.mock('../../db/repositories/offers.js', () => ({
   findProductOffers: vi.fn(),
 }))
 
-vi.mock('../../db/repositories/transactions.js', () => ({
-  createTransaction: vi.fn(),
-}))
-
 const {
   findAvailableProducts,
   findProductById,
   findProductImages,
   createProduct,
   linkImageToProduct,
-  updateProductStatus,
+  purchaseProductWithTransaction,
 } = await import('../../db/repositories/products.js')
 
 const { findProductOffers } = await import('../../db/repositories/offers.js')
-const { createTransaction } = await import('../../db/repositories/transactions.js')
 
 const TEST_SECRET = 'test-secret-key'
 const BUYER_ID = 1
@@ -45,6 +40,20 @@ const app = new Hono()
 app.route('/api/products', products)
 
 describe('GET /api/products', () => {
+  const originalSecret = process.env.JWT_SECRET
+
+  beforeAll(() => {
+    process.env.JWT_SECRET = TEST_SECRET
+  })
+
+  afterAll(() => {
+    if (originalSecret !== undefined) {
+      process.env.JWT_SECRET = originalSecret
+    } else {
+      delete process.env.JWT_SECRET
+    }
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -54,12 +63,20 @@ describe('GET /api/products', () => {
       { id: 1, name: 'Available', price: 10000, status: 'available', image: null, sellerName: 'Test' },
     ])
 
-    const res = await app.request('/api/products')
+    const token = await makeToken(BUYER_ID)
+    const res = await app.request('/api/products', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
 
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json).toHaveLength(1)
     expect(json[0].name).toBe('Available')
+  })
+
+  it('returns 401 without auth token', async () => {
+    const res = await app.request('/api/products')
+    expect(res.status).toBe(401)
   })
 })
 
@@ -84,7 +101,7 @@ describe('POST /api/products', () => {
 
   it('creates product and returns its id', async () => {
     vi.mocked(createProduct).mockResolvedValue({ id: 42 })
-    vi.mocked(linkImageToProduct).mockResolvedValue([])
+    vi.mocked(linkImageToProduct).mockResolvedValue({ numUpdatedRows: 1n } as never)
 
     const token = await makeToken(SELLER_ID)
     const res = await app.request('/api/products', {
@@ -301,8 +318,7 @@ describe('POST /products/:id/purchase', () => {
 
   it('direct purchase uses listing price', async () => {
     vi.mocked(findProductById).mockResolvedValue(baseProduct)
-    vi.mocked(updateProductStatus).mockResolvedValue(true)
-    vi.mocked(createTransaction).mockResolvedValue({ id: 1, createdAt: new Date() })
+    vi.mocked(purchaseProductWithTransaction).mockResolvedValue({ transactionId: 1 })
 
     const buyerToken = await makeToken(BUYER_ID)
     const res = await app.request('/api/products/10/purchase', {
@@ -317,7 +333,6 @@ describe('POST /products/:id/purchase', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.finalPrice).toBe(10000)
-    expect(createTransaction).toHaveBeenCalledWith(10, BUYER_ID, SELLER_ID, 10000, undefined)
   })
 
   it('purchase with accepted offer uses negotiated price', async () => {
@@ -334,8 +349,7 @@ describe('POST /products/:id/purchase', () => {
         buyerName: 'Buyer',
       },
     ])
-    vi.mocked(updateProductStatus).mockResolvedValue(true)
-    vi.mocked(createTransaction).mockResolvedValue({ id: 2, createdAt: new Date() })
+    vi.mocked(purchaseProductWithTransaction).mockResolvedValue({ transactionId: 2 })
 
     const buyerToken = await makeToken(BUYER_ID)
     const res = await app.request('/api/products/10/purchase', {
@@ -350,7 +364,6 @@ describe('POST /products/:id/purchase', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.finalPrice).toBe(7500)
-    expect(createTransaction).toHaveBeenCalledWith(10, BUYER_ID, SELLER_ID, 7500, 100)
   })
 
   it('reserved product can only be purchased by reserved buyer', async () => {

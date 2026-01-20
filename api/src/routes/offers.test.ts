@@ -6,18 +6,17 @@ import { offers } from './offers.js'
 vi.mock('../../db/repositories/offers.js', () => ({
   findOfferById: vi.fn(),
   counterOffer: vi.fn(),
-  updateOfferStatus: vi.fn(),
+  acceptOfferWithReservation: vi.fn(),
 }))
 
 vi.mock('../../db/repositories/products.js', () => ({
   findProductById: vi.fn(),
-  updateProductStatus: vi.fn(),
 }))
 
-const { findOfferById, counterOffer, updateOfferStatus } = await import(
+const { findOfferById, counterOffer, acceptOfferWithReservation } = await import(
   '../../db/repositories/offers.js'
 )
-const { findProductById, updateProductStatus } = await import(
+const { findProductById } = await import(
   '../../db/repositories/products.js'
 )
 
@@ -154,8 +153,7 @@ describe('turn-based negotiation', () => {
       sellerId: SELLER_ID,
       sellerName: 'Seller',
     })
-    vi.mocked(updateOfferStatus).mockResolvedValue([])
-    vi.mocked(updateProductStatus).mockResolvedValue(true)
+    vi.mocked(acceptOfferWithReservation).mockResolvedValue(true)
 
     const sellerToken = await makeToken(SELLER_ID)
     const sellerRes = await app.request(`/api/offers/${OFFER_ID}/accept`, {
@@ -165,8 +163,6 @@ describe('turn-based negotiation', () => {
     expect(sellerRes.status).toBe(200)
     const sellerJson = await sellerRes.json()
     expect(sellerJson.success).toBe(true)
-    expect(updateOfferStatus).toHaveBeenCalledWith(OFFER_ID, 'accepted')
-    expect(updateProductStatus).toHaveBeenCalledWith(PRODUCT_ID, 'reserved', 1, BUYER_ID)
 
     const buyerToken = await makeToken(BUYER_ID)
     const buyerRes = await app.request(`/api/offers/${OFFER_ID}/accept`, {

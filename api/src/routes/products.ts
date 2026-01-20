@@ -6,8 +6,8 @@ import {
   findProductImages,
   createProduct,
   linkImageToProduct,
-  updateProductStatus,
   findProductsBySeller,
+  purchaseProductWithTransaction,
 } from '../../db/repositories/products.js'
 import {
   createOffer,
@@ -15,35 +15,18 @@ import {
   findProductOffers,
   countPendingOffersByProducts,
 } from '../../db/repositories/offers.js'
-import { createTransaction } from '../../db/repositories/transactions.js'
 
 const products = new Hono<{ Variables: { user: AuthUser } }>()
 
-products.get('/', async (c) => {
+products.get('/', authMiddleware, async (c) => {
   const seller = c.req.query('seller')
+  const limit = Math.min(parseInt(c.req.query('limit') || '50', 10) || 50, 100)
+  const offset = parseInt(c.req.query('offset') || '0', 10) || 0
 
   if (seller === 'me') {
-    const authHeader = c.req.header('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return c.json({ error: 'Unauthorised' }, 401)
-    }
-
-    let userId: number
-    try {
-      const { verify } = await import('hono/jwt')
-      const token = authHeader.slice(7)
-      const secret = process.env.JWT_SECRET
-      if (!secret) {
-        return c.json({ error: 'Server configuration error' }, 500)
-      }
-      const payload = await verify(token, secret, 'HS256')
-      userId = payload.sub as number
-    } catch {
-      return c.json({ error: 'Invalid token' }, 401)
-    }
-
-    const products = await findProductsBySeller(userId)
-    const productIds = products.map((p) => p.id)
+    const user = c.get('user')
+    const sellerProducts = await findProductsBySeller(user.id, limit, offset)
+    const productIds = sellerProducts.map((p) => p.id)
 
     let offerCounts: Map<number, number> = new Map()
     if (productIds.length > 0) {
@@ -51,7 +34,7 @@ products.get('/', async (c) => {
       offerCounts = new Map(counts.map((c) => [c.productId, Number(c.count)]))
     }
 
-    const result = products.map((p) => ({
+    const result = sellerProducts.map((p) => ({
       ...p,
       offerCount: offerCounts.get(p.id) ?? 0,
     }))
@@ -59,11 +42,11 @@ products.get('/', async (c) => {
     return c.json(result)
   }
 
-  const rows = await findAvailableProducts()
+  const rows = await findAvailableProducts(limit, offset)
   return c.json(rows)
 })
 
-products.get('/:id', async (c) => {
+products.get('/:id', authMiddleware, async (c) => {
   const id = parseInt(c.req.param('id'), 10)
 
   const product = await findProductById(id)
@@ -74,40 +57,20 @@ products.get('/:id', async (c) => {
   const images = await findProductImages(id)
   const offers = await findProductOffers(id)
 
-  const authHeader = c.req.header('Authorization')
-  let userId: number | null = null
-
-  if (authHeader?.startsWith('Bearer ')) {
-    try {
-      const { verify } = await import('hono/jwt')
-      const token = authHeader.slice(7)
-      const secret = process.env.JWT_SECRET
-      if (secret) {
-        const payload = await verify(token, secret, 'HS256')
-        userId = payload.sub as number
-      }
-    } catch {
-      // Invalid token, treat as unauthenticated
-    }
-  }
+  const user = c.get('user')
+  const userId = user.id
 
   const isSeller = userId === product.sellerId
   const isNotSold = product.status !== 'sold'
   const isAvailable = product.status === 'available'
   const isReserved = product.status === 'reserved'
 
-  const pendingOfferFromUser = userId
-    ? offers.find((o) => o.buyerId === userId && o.status === 'pending')
-    : null
+  const pendingOfferFromUser = offers.find((o) => o.buyerId === userId && o.status === 'pending')
 
   const canPurchase =
-    isNotSold &&
-    !isSeller &&
-    userId !== null &&
-    (isAvailable || (isReserved && product.reservedBy === userId))
+    isNotSold && !isSeller && (isAvailable || (isReserved && product.reservedBy === userId))
 
-  const canMakeInitialOffer =
-    isAvailable && !isSeller && userId !== null && !pendingOfferFromUser
+  const canMakeInitialOffer = isAvailable && !isSeller && !pendingOfferFromUser
 
   const offersWithPermissions = offers.map((offer) => {
     const userRole =
@@ -142,7 +105,7 @@ products.get('/:id', async (c) => {
 })
 
 products.post('/', authMiddleware, async (c) => {
-  const user = c.get('user')
+  const user = c.get('user')!
 
   const body = await c.req.json<{
     name: string
@@ -176,7 +139,10 @@ products.post('/', authMiddleware, async (c) => {
 
   if (body.imageIds && body.imageIds.length > 0) {
     for (let i = 0; i < body.imageIds.length; i++) {
-      await linkImageToProduct(body.imageIds[i], product.id, i)
+      const result = await linkImageToProduct(body.imageIds[i], product.id, i, user.id)
+      if (!result || result.numUpdatedRows === 0n) {
+        return c.json({ error: 'Invalid image ID or not authorised to use this image' }, 400)
+      }
     }
   }
 
@@ -185,7 +151,7 @@ products.post('/', authMiddleware, async (c) => {
 
 products.post('/:id/offers', authMiddleware, async (c) => {
   const productId = parseInt(c.req.param('id'), 10)
-  const user = c.get('user')
+  const user = c.get('user')!
 
   const body = await c.req.json<{ amount: number }>().catch(() => ({ amount: 0 }))
   if (!body.amount || body.amount <= 0 || !Number.isInteger(body.amount)) {
@@ -227,7 +193,7 @@ products.post('/:id/offers', authMiddleware, async (c) => {
 
 products.post('/:id/purchase', authMiddleware, async (c) => {
   const productId = parseInt(c.req.param('id'), 10)
-  const user = c.get('user')
+  const user = c.get('user')!
 
   const body = await c.req.json<{ offerId?: number }>().catch((): { offerId?: number } => ({}))
 
@@ -263,20 +229,20 @@ products.post('/:id/purchase', authMiddleware, async (c) => {
     offerId = acceptedOffer.id
   }
 
-  const updated = await updateProductStatus(productId, 'sold', product.version, null)
-  if (!updated) {
-    return c.json({ error: 'Product was modified by another user' }, 409)
-  }
-
-  const transaction = await createTransaction(
+  const result = await purchaseProductWithTransaction(
     productId,
     user.id,
     product.sellerId,
     finalPrice,
+    product.version,
     offerId
   )
 
-  return c.json({ transactionId: transaction.id, finalPrice })
+  if (!result) {
+    return c.json({ error: 'Product was modified by another user' }, 409)
+  }
+
+  return c.json({ transactionId: result.transactionId, finalPrice })
 })
 
 export { products }

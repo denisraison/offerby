@@ -3,12 +3,12 @@ import { authMiddleware, type AuthUser } from '../middleware/auth.js'
 import {
   findOfferById,
   counterOffer,
-  updateOfferStatus,
   findPendingOffersForSeller,
   findPendingOffersForBuyer,
   findAcceptedOffersForBuyer,
+  acceptOfferWithReservation,
 } from '../../db/repositories/offers.js'
-import { findProductById, updateProductStatus } from '../../db/repositories/products.js'
+import { findProductById } from '../../db/repositories/products.js'
 
 const offers = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -16,23 +16,25 @@ offers.get('/', authMiddleware, async (c) => {
   const status = c.req.query('status')
   const seller = c.req.query('seller')
   const buyer = c.req.query('buyer')
+  const limit = Math.min(parseInt(c.req.query('limit') || '50', 10) || 50, 100)
+  const offset = parseInt(c.req.query('offset') || '0', 10) || 0
 
   const user = c.get('user')
 
   if (status === 'pending') {
     if (seller === 'me') {
-      const pendingOffers = await findPendingOffersForSeller(user.id)
+      const pendingOffers = await findPendingOffersForSeller(user.id, limit, offset)
       return c.json(pendingOffers)
     }
 
     if (buyer === 'me') {
-      const pendingOffers = await findPendingOffersForBuyer(user.id)
+      const pendingOffers = await findPendingOffersForBuyer(user.id, limit, offset)
       return c.json(pendingOffers)
     }
   }
 
   if (status === 'accepted' && buyer === 'me') {
-    const acceptedOffers = await findAcceptedOffersForBuyer(user.id)
+    const acceptedOffers = await findAcceptedOffersForBuyer(user.id, limit, offset)
     return c.json(acceptedOffers)
   }
 
@@ -116,8 +118,14 @@ offers.post('/:id/accept', authMiddleware, async (c) => {
     return c.json({ error: 'Product not found' }, 404)
   }
 
-  await updateOfferStatus(offerId, 'accepted')
-  await updateProductStatus(offer.productId, 'reserved', product.version, offer.buyerId)
+  try {
+    await acceptOfferWithReservation(offerId, offer.productId, offer.buyerId, product.version)
+  } catch (err) {
+    if (err instanceof Error && err.message === 'Product version conflict') {
+      return c.json({ error: 'Product was modified by another user' }, 409)
+    }
+    throw err
+  }
 
   return c.json({ success: true, offerId, amount: offer.amount })
 })

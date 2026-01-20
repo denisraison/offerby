@@ -110,7 +110,7 @@ export const countPendingOffersByProducts = (productIds: number[]) =>
     .groupBy('product_id')
     .execute()
 
-export const findPendingOffersForSeller = (sellerId: number) =>
+export const findPendingOffersForSeller = (sellerId: number, limit = 50, offset = 0) =>
   db
     .selectFrom('counter_offers')
     .innerJoin('products', 'products.id', 'counter_offers.product_id')
@@ -129,9 +129,11 @@ export const findPendingOffersForSeller = (sellerId: number) =>
       'users.name as buyerName',
     ])
     .orderBy('counter_offers.created_at', 'desc')
+    .limit(limit)
+    .offset(offset)
     .execute()
 
-export const findPendingOffersForBuyer = (buyerId: number) =>
+export const findPendingOffersForBuyer = (buyerId: number, limit = 50, offset = 0) =>
   db
     .selectFrom('counter_offers')
     .innerJoin('products', 'products.id', 'counter_offers.product_id')
@@ -150,9 +152,11 @@ export const findPendingOffersForBuyer = (buyerId: number) =>
       'seller.name as sellerName',
     ])
     .orderBy('counter_offers.created_at', 'desc')
+    .limit(limit)
+    .offset(offset)
     .execute()
 
-export const findAcceptedOffersForBuyer = (buyerId: number) =>
+export const findAcceptedOffersForBuyer = (buyerId: number, limit = 50, offset = 0) =>
   db
     .selectFrom('counter_offers')
     .innerJoin('products', 'products.id', 'counter_offers.product_id')
@@ -169,4 +173,39 @@ export const findAcceptedOffersForBuyer = (buyerId: number) =>
       'seller.name as sellerName',
     ])
     .orderBy('counter_offers.created_at', 'desc')
+    .limit(limit)
+    .offset(offset)
     .execute()
+
+export const acceptOfferWithReservation = async (
+  offerId: number,
+  productId: number,
+  buyerId: number,
+  expectedVersion: number
+): Promise<boolean> => {
+  return db.transaction().execute(async (trx) => {
+    await trx
+      .updateTable('counter_offers')
+      .set({ status: 'accepted' })
+      .where('id', '=', offerId)
+      .execute()
+
+    const result = await trx
+      .updateTable('products')
+      .set({
+        status: 'reserved',
+        reserved_by: buyerId,
+        version: expectedVersion + 1,
+        updated_at: new Date(),
+      })
+      .where('id', '=', productId)
+      .where('version', '=', expectedVersion)
+      .executeTakeFirst()
+
+    if (result.numUpdatedRows === 0n) {
+      throw new Error('Product version conflict')
+    }
+
+    return true
+  })
+}
