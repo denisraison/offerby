@@ -11,7 +11,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('buyer_id', 'integer', (col) =>
       col.notNull().references('users.id')
     )
-    .addColumn('amount', 'decimal(10,2)', (col) => col.notNull())
+    .addColumn('amount', sql`decimal(10,2)`, (col) => col.notNull())
     .addColumn('proposed_by', 'varchar(10)', (col) => col.notNull())
     .addColumn('status', 'varchar(20)', (col) => col.notNull().defaultTo('pending'))
     .addColumn('parent_offer_id', 'integer', (col) =>

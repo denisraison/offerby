@@ -1,4 +1,5 @@
 import type { Kysely } from 'kysely'
+import { sql } from 'kysely'
 
 export async function up(db: Kysely<unknown>): Promise<void> {
   await db.schema
@@ -13,7 +14,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     .addColumn('seller_id', 'integer', (col) =>
       col.notNull().references('users.id')
     )
-    .addColumn('final_price', 'decimal(10,2)', (col) => col.notNull())
+    .addColumn('final_price', sql`decimal(10,2)`, (col) => col.notNull())
     .addColumn('offer_id', 'integer', (col) =>
       col.references('counter_offers.id')
     )
