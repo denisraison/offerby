@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatCurrency } from '@/utils/currency'
+
 export interface TimelineEvent {
   type: 'offer' | 'counter'
   from: 'buyer' | 'seller'
@@ -10,14 +12,6 @@ const props = defineProps<{
   events: TimelineEvent[]
   askingPrice: number
 }>()
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 0
-  }).format(amount)
-}
 
 const getMarkerPosition = (amount: number) => {
   return `${(amount / props.askingPrice) * 100}%`

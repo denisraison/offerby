@@ -38,12 +38,12 @@ const basePendingOffer = {
   productId: PRODUCT_ID,
   buyerId: BUYER_ID,
   sellerId: SELLER_ID,
-  amount: 50,
+  amount: 5000,
   status: 'pending' as const,
   productStatus: 'available' as const,
   parentOfferId: null,
   createdAt: new Date(),
-  listingPrice: 100,
+  listingPrice: 10000,
   sellerName: 'Seller',
   buyerName: 'Buyer',
 }
@@ -72,7 +72,7 @@ describe('turn-based negotiation', () => {
     vi.mocked(findOfferById).mockResolvedValue(buyerOffer)
     vi.mocked(counterOffer).mockResolvedValue({
       id: 101,
-      amount: 60,
+      amount: 6000,
       proposedBy: 'seller',
       status: 'pending',
       createdAt: new Date(),
@@ -85,7 +85,7 @@ describe('turn-based negotiation', () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${sellerToken}`,
       },
-      body: JSON.stringify({ amount: 60 }),
+      body: JSON.stringify({ amount: 6000 }),
     })
     expect(sellerRes.status).toBe(201)
 
@@ -96,7 +96,7 @@ describe('turn-based negotiation', () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${buyerToken}`,
       },
-      body: JSON.stringify({ amount: 55 }),
+      body: JSON.stringify({ amount: 5500 }),
     })
     expect(buyerRes.status).toBe(400)
     const json = await buyerRes.json()
@@ -108,7 +108,7 @@ describe('turn-based negotiation', () => {
     vi.mocked(findOfferById).mockResolvedValue(sellerCounter)
     vi.mocked(counterOffer).mockResolvedValue({
       id: 102,
-      amount: 55,
+      amount: 5500,
       proposedBy: 'buyer',
       status: 'pending',
       createdAt: new Date(),
@@ -121,7 +121,7 @@ describe('turn-based negotiation', () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${buyerToken}`,
       },
-      body: JSON.stringify({ amount: 55 }),
+      body: JSON.stringify({ amount: 5500 }),
     })
     expect(buyerRes.status).toBe(201)
 
@@ -132,7 +132,7 @@ describe('turn-based negotiation', () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${sellerToken}`,
       },
-      body: JSON.stringify({ amount: 65 }),
+      body: JSON.stringify({ amount: 6500 }),
     })
     expect(sellerRes.status).toBe(400)
     const json = await sellerRes.json()
@@ -146,7 +146,7 @@ describe('turn-based negotiation', () => {
       id: PRODUCT_ID,
       name: 'Test Product',
       description: null,
-      price: 100,
+      price: 10000,
       status: 'available' as const,
       reservedBy: null,
       version: 1,
@@ -190,7 +190,7 @@ describe('turn-based negotiation', () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${sellerToken}`,
       },
-      body: JSON.stringify({ amount: 60 }),
+      body: JSON.stringify({ amount: 6000 }),
     })
     expect(counterRes.status).toBe(400)
     expect((await counterRes.json()).error).toBe('Offer is not pending')
@@ -214,7 +214,7 @@ describe('turn-based negotiation', () => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${sellerToken}`,
       },
-      body: JSON.stringify({ amount: 60 }),
+      body: JSON.stringify({ amount: 6000 }),
     })
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('Product is already sold')

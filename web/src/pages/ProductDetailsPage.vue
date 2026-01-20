@@ -8,6 +8,7 @@ import AppInput from '@/components/base/AppInput.vue'
 import NegotiationTimeline from '@/components/domain/NegotiationTimeline.vue'
 import { getProduct } from '@/api/products'
 import { createOffer, counterOffer, acceptOffer, purchaseProduct } from '@/api/offers'
+import { formatCurrency } from '@/utils/currency'
 import type { ProductDetail, Offer } from '@/types/api'
 import { useAuthStore } from '@/stores/auth'
 
@@ -40,14 +41,6 @@ async function loadProduct(id: number) {
   } finally {
     loading.value = false
   }
-}
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 0
-  }).format(amount)
 }
 
 const currentImage = ref(0)

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppButton from '@/components/base/AppButton.vue'
 import NegotiationTimeline, { type TimelineEvent } from './NegotiationTimeline.vue'
+import { formatCurrency } from '@/utils/currency'
 
 defineProps<{
   product: string
@@ -14,14 +15,6 @@ defineEmits<{
   accept: [amount: number]
   counter: []
 }>()
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 0
-  }).format(amount)
-}
 </script>
 
 <template>

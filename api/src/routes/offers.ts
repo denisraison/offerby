@@ -14,8 +14,8 @@ offers.post('/:id/counter', authMiddleware, async (c) => {
   const user = c.get('user')
 
   const body = await c.req.json<{ amount: number }>().catch(() => ({ amount: 0 }))
-  if (!body.amount || body.amount <= 0) {
-    return c.json({ error: 'Amount must be positive' }, 400)
+  if (!body.amount || body.amount <= 0 || !Number.isInteger(body.amount)) {
+    return c.json({ error: 'Amount must be a positive integer (cents)' }, 400)
   }
 
   const offer = await findOfferById(offerId)

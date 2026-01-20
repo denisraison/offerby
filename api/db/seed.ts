@@ -41,19 +41,19 @@ async function seed() {
       seller_id: seller.id,
       name: 'Vintage Eames Chair',
       description: 'Authentic Herman Miller Eames lounge chair from the 1970s. Original leather with beautiful patina.',
-      price: 2400,
+      price: 240000,
     },
     {
       seller_id: seller.id,
       name: 'Mid-Century Desk Lamp',
       description: 'Danish modern desk lamp in brass with adjustable arm. Perfect working condition.',
-      price: 180,
+      price: 18000,
     },
     {
       seller_id: seller.id,
       name: 'Handwoven Moroccan Rug',
       description: 'Authentic Beni Ourain rug, hand-knotted wool. Approximately 2.5m x 1.5m.',
-      price: 890,
+      price: 89000,
     },
   ]
 

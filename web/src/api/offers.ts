@@ -1,4 +1,5 @@
 import { api } from '@/lib/api'
+import { dollarsToCents } from '@/utils/currency'
 import type {
   CreateOfferResponse,
   AcceptOfferResponse,
@@ -6,10 +7,10 @@ import type {
 } from '@/types/api'
 
 export const createOffer = (productId: number, amount: number) =>
-  api.post<CreateOfferResponse>(`/products/${productId}/offers`, { amount })
+  api.post<CreateOfferResponse>(`/products/${productId}/offers`, { amount: dollarsToCents(amount) })
 
 export const counterOffer = (offerId: number, amount: number) =>
-  api.post<CreateOfferResponse>(`/offers/${offerId}/counter`, { amount })
+  api.post<CreateOfferResponse>(`/offers/${offerId}/counter`, { amount: dollarsToCents(amount) })
 
 export const acceptOffer = (offerId: number) =>
   api.post<AcceptOfferResponse>(`/offers/${offerId}/accept`)

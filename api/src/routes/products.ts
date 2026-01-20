@@ -118,8 +118,8 @@ products.post('/', authMiddleware, async (c) => {
     return c.json({ error: 'Description too long (max 2000 characters)' }, 400)
   }
 
-  if (!body.price || body.price <= 0) {
-    return c.json({ error: 'Price must be positive' }, 400)
+  if (!body.price || body.price <= 0 || !Number.isInteger(body.price)) {
+    return c.json({ error: 'Price must be a positive integer (cents)' }, 400)
   }
 
   const product = await createProduct({
@@ -143,8 +143,8 @@ products.post('/:id/offers', authMiddleware, async (c) => {
   const user = c.get('user')
 
   const body = await c.req.json<{ amount: number }>().catch(() => ({ amount: 0 }))
-  if (!body.amount || body.amount <= 0) {
-    return c.json({ error: 'Amount must be positive' }, 400)
+  if (!body.amount || body.amount <= 0 || !Number.isInteger(body.amount)) {
+    return c.json({ error: 'Amount must be a positive integer (cents)' }, 400)
   }
 
   const product = await findProductById(productId)

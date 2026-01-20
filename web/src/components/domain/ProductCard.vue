@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppBadge from '@/components/base/AppBadge.vue'
+import { formatCurrency } from '@/utils/currency'
 
 export type ProductStatus = 'available' | 'negotiating' | 'reserved' | 'sold'
 
@@ -10,14 +11,6 @@ defineProps<{
   image?: string | null
   offers?: number
 }>()
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-AU', {
-    style: 'currency',
-    currency: 'AUD',
-    minimumFractionDigits: 0
-  }).format(amount)
-}
 </script>
 
 <template>

@@ -51,7 +51,7 @@ describe('GET /api/products', () => {
 
   it('returns available products', async () => {
     vi.mocked(findAvailableProducts).mockResolvedValue([
-      { id: 1, name: 'Available', price: 100, status: 'available', image: null, sellerName: 'Test' },
+      { id: 1, name: 'Available', price: 10000, status: 'available', image: null, sellerName: 'Test' },
     ])
 
     const res = await app.request('/api/products')
@@ -95,7 +95,7 @@ describe('POST /api/products', () => {
       },
       body: JSON.stringify({
         name: 'Test Product',
-        price: 50,
+        price: 5000,
         imageIds: [1, 2],
       }),
     })
@@ -121,7 +121,7 @@ describe('POST /api/products', () => {
 
     expect(res.status).toBe(400)
     const json = await res.json()
-    expect(json.error).toBe('Price must be positive')
+    expect(json.error).toBe('Price must be a positive integer (cents)')
   })
 
   it('validates price rejects negative', async () => {
@@ -140,7 +140,7 @@ describe('POST /api/products', () => {
 
     expect(res.status).toBe(400)
     const json = await res.json()
-    expect(json.error).toBe('Price must be positive')
+    expect(json.error).toBe('Price must be a positive integer (cents)')
   })
 })
 
@@ -148,7 +148,7 @@ const baseProduct = {
   id: 10,
   name: 'Test Product',
   description: 'A product',
-  price: 100,
+  price: 10000,
   status: 'available' as const,
   reservedBy: null,
   version: 1,
@@ -198,7 +198,7 @@ describe('GET /products/:id permissions', () => {
       {
         id: 100,
         buyerId: BUYER_ID,
-        amount: 50,
+        amount: 5000,
         proposedBy: 'buyer',
         status: 'pending',
         parentOfferId: null,
@@ -236,7 +236,7 @@ describe('GET /products/:id permissions', () => {
     const buyerOffer = {
       id: 100,
       buyerId: BUYER_ID,
-      amount: 50,
+      amount: 5000,
       proposedBy: 'buyer' as const,
       status: 'pending' as const,
       parentOfferId: null,
@@ -316,8 +316,8 @@ describe('POST /products/:id/purchase', () => {
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.finalPrice).toBe(100)
-    expect(createTransaction).toHaveBeenCalledWith(10, BUYER_ID, SELLER_ID, 100, undefined)
+    expect(json.finalPrice).toBe(10000)
+    expect(createTransaction).toHaveBeenCalledWith(10, BUYER_ID, SELLER_ID, 10000, undefined)
   })
 
   it('purchase with accepted offer uses negotiated price', async () => {
@@ -326,7 +326,7 @@ describe('POST /products/:id/purchase', () => {
       {
         id: 100,
         buyerId: BUYER_ID,
-        amount: 75,
+        amount: 7500,
         proposedBy: 'seller',
         status: 'accepted',
         parentOfferId: null,
@@ -349,8 +349,8 @@ describe('POST /products/:id/purchase', () => {
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.finalPrice).toBe(75)
-    expect(createTransaction).toHaveBeenCalledWith(10, BUYER_ID, SELLER_ID, 75, 100)
+    expect(json.finalPrice).toBe(7500)
+    expect(createTransaction).toHaveBeenCalledWith(10, BUYER_ID, SELLER_ID, 7500, 100)
   })
 
   it('reserved product can only be purchased by reserved buyer', async () => {

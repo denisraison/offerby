@@ -1,4 +1,5 @@
 import { get, post, upload as uploadFile } from './client'
+import { dollarsToCents } from '@/utils/currency'
 import type {
   ProductListItem,
   ProductDetail,
@@ -15,7 +16,7 @@ export function getProduct(id: number): Promise<ProductDetail> {
 }
 
 export function createProduct(data: CreateProductRequest): Promise<{ id: number }> {
-  return post<{ id: number }>('/api/products', data)
+  return post<{ id: number }>('/api/products', { ...data, price: dollarsToCents(data.price) })
 }
 
 export function uploadImage(file: File): Promise<UploadResponse> {
