@@ -25,6 +25,8 @@ interface UploadedImage {
 const uploadedImages = ref<UploadedImage[]>([])
 const uploading = ref(false)
 
+const maxImages = 5
+
 const handleFileSelect = async (event: Event) => {
   const input = event.target as HTMLInputElement
   if (!input.files?.length) return
@@ -32,6 +34,10 @@ const handleFileSelect = async (event: Event) => {
   uploading.value = true
   try {
     for (const file of input.files) {
+      if (uploadedImages.value.length >= maxImages) {
+        errors.value.images = `Maximum ${maxImages} images allowed`
+        break
+      }
       const result = await uploadImage(file)
       uploadedImages.value.push(result)
     }
@@ -124,7 +130,7 @@ const handleSubmit = async () => {
             </div>
           </div>
 
-          <label class="upload-area" :class="{ disabled: uploading }">
+          <label v-if="uploadedImages.length < maxImages" class="upload-area" :class="{ disabled: uploading }">
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
@@ -135,8 +141,9 @@ const handleSubmit = async () => {
             />
             <span class="upload-icon">+</span>
             <span class="upload-text">{{ uploading ? 'Uploading...' : 'Click to upload images' }}</span>
-            <span class="upload-hint">PNG, JPG, WebP up to 5MB</span>
+            <span class="upload-hint">PNG, JPG, WebP up to 5MB ({{ maxImages - uploadedImages.length }} remaining)</span>
           </label>
+          <p v-else class="max-images-message">Maximum {{ maxImages }} images reached</p>
 
           <p v-if="errors.images" class="error-text">{{ errors.images }}</p>
         </div>
@@ -296,6 +303,15 @@ const handleSubmit = async () => {
 .error-text {
   font-size: 0.75rem;
   color: var(--coral);
+}
+
+.max-images-message {
+  font-size: 0.875rem;
+  color: var(--charcoal-soft);
+  text-align: center;
+  padding: var(--space-md);
+  background: var(--cream);
+  border-radius: 12px;
 }
 
 .form-actions {

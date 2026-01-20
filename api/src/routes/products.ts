@@ -122,6 +122,10 @@ products.post('/', authMiddleware, async (c) => {
     return c.json({ error: 'Price must be a positive integer (cents)' }, 400)
   }
 
+  if (body.imageIds && body.imageIds.length > 5) {
+    return c.json({ error: 'Maximum 5 images allowed' }, 400)
+  }
+
   const product = await createProduct({
     sellerId: user.id,
     name: body.name,
@@ -184,7 +188,7 @@ products.post('/:id/purchase', authMiddleware, async (c) => {
   const productId = parseInt(c.req.param('id'), 10)
   const user = c.get('user')
 
-  const body = await c.req.json<{ offerId?: number }>().catch(() => ({}))
+  const body = await c.req.json<{ offerId?: number }>().catch((): { offerId?: number } => ({}))
 
   const product = await findProductById(productId)
   if (!product) {
