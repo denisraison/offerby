@@ -10,6 +10,7 @@ defineProps<{
   status: ProductStatus
   image?: string | null
   offers?: number
+  sellerName?: string
 }>()
 </script>
 
@@ -20,12 +21,10 @@ defineProps<{
       <div v-else class="image-placeholder">
         <span>{{ name.charAt(0) }}</span>
       </div>
-      <AppBadge :variant="status" class="product-status">
-        {{ status }}
-      </AppBadge>
     </div>
     <div class="product-info">
       <h3 class="product-name">{{ name }}</h3>
+      <span v-if="sellerName" class="product-seller">{{ sellerName }}</span>
       <div class="product-meta">
         <span class="product-price">{{ formatCurrency(price) }}</span>
         <span v-if="offers && offers > 0" class="product-offers">
@@ -33,11 +32,15 @@ defineProps<{
         </span>
       </div>
     </div>
+    <AppBadge :variant="status" class="product-status">
+      {{ status }}
+    </AppBadge>
   </article>
 </template>
 
 <style scoped>
 .product-card {
+  position: relative;
   display: flex;
   gap: var(--space-md);
   background: white;
@@ -83,8 +86,8 @@ defineProps<{
 
 .product-status {
   position: absolute;
-  top: -6px;
-  right: -6px;
+  bottom: var(--space-md);
+  right: var(--space-md);
 }
 
 .product-info {
@@ -98,6 +101,12 @@ defineProps<{
   font-size: 0.9375rem;
   font-weight: 500;
   color: var(--charcoal);
+  margin-bottom: var(--space-xs);
+}
+
+.product-seller {
+  font-size: 0.8125rem;
+  color: var(--charcoal-soft);
   margin-bottom: var(--space-xs);
 }
 

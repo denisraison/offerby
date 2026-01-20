@@ -65,6 +65,7 @@ const filteredProducts = computed(() => {
             :status="product.status"
             :image="product.image"
             :offers="0"
+            :seller-name="product.sellerName"
           />
         </RouterLink>
       </section>
