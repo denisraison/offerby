@@ -7,17 +7,58 @@ import {
   createProduct,
   linkImageToProduct,
   updateProductStatus,
+  findProductsBySeller,
 } from '../../db/repositories/products.js'
 import {
   createOffer,
   findPendingOffer,
   findProductOffers,
+  countPendingOffersByProducts,
 } from '../../db/repositories/offers.js'
 import { createTransaction } from '../../db/repositories/transactions.js'
 
 const products = new Hono<{ Variables: { user: AuthUser } }>()
 
 products.get('/', async (c) => {
+  const seller = c.req.query('seller')
+
+  if (seller === 'me') {
+    const authHeader = c.req.header('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return c.json({ error: 'Unauthorised' }, 401)
+    }
+
+    let userId: number
+    try {
+      const { verify } = await import('hono/jwt')
+      const token = authHeader.slice(7)
+      const secret = process.env.JWT_SECRET
+      if (!secret) {
+        return c.json({ error: 'Server configuration error' }, 500)
+      }
+      const payload = await verify(token, secret, 'HS256')
+      userId = payload.sub as number
+    } catch {
+      return c.json({ error: 'Invalid token' }, 401)
+    }
+
+    const products = await findProductsBySeller(userId)
+    const productIds = products.map((p) => p.id)
+
+    let offerCounts: Map<number, number> = new Map()
+    if (productIds.length > 0) {
+      const counts = await countPendingOffersByProducts(productIds)
+      offerCounts = new Map(counts.map((c) => [c.productId, Number(c.count)]))
+    }
+
+    const result = products.map((p) => ({
+      ...p,
+      offerCount: offerCounts.get(p.id) ?? 0,
+    }))
+
+    return c.json(result)
+  }
+
   const rows = await findAvailableProducts()
   return c.json(rows)
 })

@@ -5,10 +5,15 @@ import type {
   ProductDetail,
   CreateProductRequest,
   UploadResponse,
+  SellerProductItem,
 } from '@/types/api'
 
 export function getProducts(): Promise<ProductListItem[]> {
   return get<ProductListItem[]>('/api/products')
+}
+
+export function getMyProducts(): Promise<SellerProductItem[]> {
+  return get<SellerProductItem[]>('/api/products?seller=me')
 }
 
 export function getProduct(id: number): Promise<ProductDetail> {

@@ -4,10 +4,40 @@ import {
   findOfferById,
   counterOffer,
   updateOfferStatus,
+  findPendingOffersForSeller,
+  findPendingOffersForBuyer,
+  findAcceptedOffersForBuyer,
 } from '../../db/repositories/offers.js'
 import { findProductById, updateProductStatus } from '../../db/repositories/products.js'
 
 const offers = new Hono<{ Variables: { user: AuthUser } }>()
+
+offers.get('/', authMiddleware, async (c) => {
+  const status = c.req.query('status')
+  const seller = c.req.query('seller')
+  const buyer = c.req.query('buyer')
+
+  const user = c.get('user')
+
+  if (status === 'pending') {
+    if (seller === 'me') {
+      const pendingOffers = await findPendingOffersForSeller(user.id)
+      return c.json(pendingOffers)
+    }
+
+    if (buyer === 'me') {
+      const pendingOffers = await findPendingOffersForBuyer(user.id)
+      return c.json(pendingOffers)
+    }
+  }
+
+  if (status === 'accepted' && buyer === 'me') {
+    const acceptedOffers = await findAcceptedOffersForBuyer(user.id)
+    return c.json(acceptedOffers)
+  }
+
+  return c.json({ error: 'Invalid query parameters' }, 400)
+})
 
 offers.post('/:id/counter', authMiddleware, async (c) => {
   const offerId = parseInt(c.req.param('id'), 10)

@@ -9,6 +9,7 @@ import { auth } from './routes/auth.js'
 import { products } from './routes/products.js'
 import { offers } from './routes/offers.js'
 import { upload } from './routes/upload.js'
+import { transactions } from './routes/transactions.js'
 
 const app = new Hono()
 
@@ -27,6 +28,7 @@ app.route('/api/auth', auth)
 app.route('/api/products', products)
 app.route('/api/offers', offers)
 app.route('/api/upload', upload)
+app.route('/api/transactions', transactions)
 
 const port = parseInt(process.env.PORT || '3000', 10)
 

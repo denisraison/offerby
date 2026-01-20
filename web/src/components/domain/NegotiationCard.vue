@@ -5,14 +5,15 @@ import { formatCurrency } from '@/utils/currency'
 
 defineProps<{
   product: string
-  buyer: string
+  counterparty: string
   timeline: TimelineEvent[]
   currentOffer: number
   askingPrice: number
+  productId: number
 }>()
 
 defineEmits<{
-  accept: [amount: number]
+  accept: []
   counter: []
 }>()
 </script>
@@ -21,13 +22,13 @@ defineEmits<{
   <article class="negotiation-card">
     <div class="neg-header">
       <h3 class="neg-product">{{ product }}</h3>
-      <span class="neg-buyer">with {{ buyer }}</span>
+      <span class="neg-buyer">with {{ counterparty }}</span>
     </div>
 
     <NegotiationTimeline :events="timeline" :asking-price="askingPrice" />
 
     <div class="neg-actions">
-      <AppButton variant="secondary" @click="$emit('accept', currentOffer)">
+      <AppButton variant="secondary" @click="$emit('accept')">
         Accept {{ formatCurrency(currentOffer) }}
       </AppButton>
       <AppButton variant="outline" @click="$emit('counter')">

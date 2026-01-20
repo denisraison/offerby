@@ -98,3 +98,22 @@ export const updateProductStatus = async (
 
   return result.numUpdatedRows > 0n
 }
+
+export const findProductsBySeller = (sellerId: number) =>
+  db
+    .selectFrom('products')
+    .leftJoin('product_images', (join) =>
+      join
+        .onRef('product_images.product_id', '=', 'products.id')
+        .on('product_images.display_order', '=', 0)
+    )
+    .where('products.seller_id', '=', sellerId)
+    .select([
+      'products.id',
+      'products.name',
+      'products.price',
+      'products.status',
+      'product_images.path as image',
+    ])
+    .orderBy('products.created_at', 'desc')
+    .execute()

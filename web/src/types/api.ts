@@ -77,3 +77,42 @@ export interface PurchaseResponse {
   transactionId: number
   finalPrice: number
 }
+
+export interface SellerProductItem {
+  id: number
+  name: string
+  price: number
+  status: ProductStatus
+  image: string | null
+  offerCount: number
+}
+
+export interface Transaction {
+  id: number
+  productId: number
+  productName: string
+  buyerName: string
+  finalPrice: number
+  createdAt: string
+}
+
+export interface PendingNegotiation {
+  id: number
+  productId: number
+  buyerId: number
+  amount: number
+  productName: string
+  productPrice: number
+  buyerName?: string
+  sellerName?: string
+  createdAt: string
+}
+
+export interface AcceptedOffer {
+  id: number
+  productId: number
+  amount: number
+  productName: string
+  sellerName: string
+  createdAt: string
+}
