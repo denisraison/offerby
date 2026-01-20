@@ -1,7 +1,18 @@
 const BASE_URL = 'http://localhost:3000'
 
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {}
+  const token = localStorage.getItem('token')
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
 export async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`)
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: getAuthHeaders(),
+  })
   if (!res.ok) {
     throw new Error(`GET ${path} failed: ${res.status}`)
   }
@@ -11,7 +22,7 @@ export async function get<T>(path: string): Promise<T> {
 export async function post<T>(path: string, data: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(data),
   })
   if (!res.ok) {
@@ -26,6 +37,7 @@ export async function upload(file: File): Promise<{ id: number; path: string }> 
 
   const res = await fetch(`${BASE_URL}/api/upload`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     body: formData,
   })
   if (!res.ok) {
