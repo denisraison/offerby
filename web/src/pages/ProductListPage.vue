@@ -32,7 +32,7 @@ const filteredProducts = computed(() => {
 </script>
 
 <template>
-  <PageLayout :user="authStore.user">
+  <PageLayout :user="authStore.user ?? undefined">
     <section class="page-header">
       <div class="header-text">
         <h1 class="page-title">Browse</h1>

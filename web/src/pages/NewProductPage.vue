@@ -79,7 +79,7 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <PageLayout :user="authStore.user">
+  <PageLayout :user="authStore.user ?? undefined">
     <section class="page-header">
       <RouterLink to="/dashboard" class="back-link">
         <span class="back-arrow">&larr;</span>
