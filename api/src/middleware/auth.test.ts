@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Hono } from 'hono'
 import { sign } from 'hono/jwt'
-import { authMiddleware } from './auth.js'
+import { authMiddleware, type AuthUser } from './auth.js'
 
 const TEST_SECRET = 'test-secret-key-for-testing-purposes'
 
 const createApp = () => {
-  const app = new Hono()
+  const app = new Hono<{ Variables: { user: AuthUser } }>()
   app.use('/protected/*', authMiddleware)
   app.get('/protected/resource', (c) => {
     const user = c.get('user')
