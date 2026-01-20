@@ -7,6 +7,7 @@ import AppInput from '@/components/base/AppInput.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import { createProduct, uploadImage } from '@/api/products'
 import { useAuthStore } from '@/stores/auth'
+import { API_BASE_URL } from '@/api/client'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -123,7 +124,7 @@ const handleSubmit = async () => {
 
           <div v-if="uploadedImages.length" class="image-previews">
             <div v-for="img in uploadedImages" :key="img.id" class="image-preview">
-              <img :src="`http://localhost:3000${img.path}`" alt="Product image" />
+              <img :src="`${API_BASE_URL}${img.path}`" alt="Product image" />
               <button type="button" class="remove-btn" @click="removeImage(img.id)">
                 &times;
               </button>

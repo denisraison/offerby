@@ -11,6 +11,7 @@ import { createOffer, counterOffer, acceptOffer, purchaseProduct } from '@/api/o
 import { formatCurrency } from '@/utils/currency'
 import type { ProductDetail, Offer } from '@/types/api'
 import { useAuthStore } from '@/stores/auth'
+import { API_BASE_URL } from '@/api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -187,7 +188,7 @@ const handlePurchase = async () => {
       <div class="product-image-section">
         <div v-if="displayImage" class="image-container">
           <img
-            :src="`http://localhost:3000${displayImage.path}`"
+            :src="`${API_BASE_URL}${displayImage.path}`"
             :alt="product.name"
             class="product-image"
           />
@@ -203,7 +204,7 @@ const handlePurchase = async () => {
             :class="['thumbnail', { active: idx === currentImage }]"
             @click="currentImage = idx"
           >
-            <img :src="`http://localhost:3000${img.path}`" :alt="`${product.name} ${idx + 1}`" />
+            <img :src="`${API_BASE_URL}${img.path}`" :alt="`${product.name} ${idx + 1}`" />
           </button>
         </div>
       </div>
