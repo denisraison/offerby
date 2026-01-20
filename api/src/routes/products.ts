@@ -169,8 +169,15 @@ products.post('/:id/offers', authMiddleware, async (c) => {
     return c.json({ error: 'You already have a pending offer on this product' }, 400)
   }
 
-  const offer = await createOffer(productId, user.id, body.amount)
-  return c.json(offer, 201)
+  try {
+    const offer = await createOffer(productId, user.id, body.amount)
+    return c.json(offer, 201)
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('idx_one_pending_per_buyer')) {
+      return c.json({ error: 'You already have a pending offer on this product' }, 400)
+    }
+    throw err
+  }
 })
 
 products.post('/:id/purchase', authMiddleware, async (c) => {
