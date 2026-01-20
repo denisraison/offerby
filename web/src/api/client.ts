@@ -1,4 +1,9 @@
-const BASE_URL = 'http://localhost:3000'
+export const API_BASE_URL = 'http://localhost:3000'
+
+export function resolveImageUrl(path: string | null | undefined): string | undefined {
+  if (!path) return undefined
+  return `${API_BASE_URL}${path}`
+}
 
 function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {}
@@ -10,7 +15,7 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 export async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     headers: getAuthHeaders(),
   })
   if (!res.ok) {
@@ -20,7 +25,7 @@ export async function get<T>(path: string): Promise<T> {
 }
 
 export async function post<T>(path: string, data: unknown): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(data),
@@ -35,7 +40,7 @@ export async function upload(file: File): Promise<{ id: number; path: string }> 
   const formData = new FormData()
   formData.append('file', file)
 
-  const res = await fetch(`${BASE_URL}/api/upload`, {
+  const res = await fetch(`${API_BASE_URL}/api/upload`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: formData,

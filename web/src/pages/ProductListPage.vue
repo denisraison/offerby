@@ -4,6 +4,7 @@ import PageLayout from '@/components/layout/PageLayout.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import ProductCard from '@/components/domain/ProductCard.vue'
 import { getProducts } from '@/api/products'
+import { resolveImageUrl } from '@/api/client'
 import type { ProductListItem } from '@/types/api'
 import { useAuthStore } from '@/stores/auth'
 
@@ -63,7 +64,7 @@ const filteredProducts = computed(() => {
             :name="product.name"
             :price="product.price"
             :status="product.status"
-            :image="product.image"
+            :image="resolveImageUrl(product.image)"
             :offers="0"
             :seller-name="product.sellerName"
           />

@@ -59,3 +59,4 @@ flake-regressions
 
 # direnv
 .direnv/
+docs/
