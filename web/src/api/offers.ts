@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { api } from '@/api/client'
 import { dollarsToCents } from '@/utils/currency'
 import type {
   CreateOfferResponse,
