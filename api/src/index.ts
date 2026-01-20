@@ -10,14 +10,16 @@ import { products } from './routes/products.js'
 import { offers } from './routes/offers.js'
 import { upload } from './routes/upload.js'
 import { transactions } from './routes/transactions.js'
+import { errorMiddleware } from './middleware/error.js'
 
 const app = new Hono()
 
+app.use('*', errorMiddleware)
 app.use('*', logger())
 app.use(
   '*',
   cors({
-    origin: 'http://localhost:5173',
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   })
 )
 
