@@ -1,0 +1,61 @@
+/outputs
+
+# Uploads
+uploads/
+
+# Node
+node_modules/
+
+# Env files
+.env
+.env.local
+
+# Build outputs
+dist/
+*.zip
+
+# SQLite
+*.db
+*.db-wal
+*.db-shm
+
+# Scratch space
+scratch/
+
+# Docker volumes
+pgdata/
+
+*~
+
+# GNU Global
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+
+# ccls
+/.ccls-cache
+
+# auto-generated compilation database
+compile_commands.json
+*.compile_commands.json
+
+result
+result-*
+
+# IDE
+.vscode/
+.idea/
+
+.pre-commit-config.yaml
+
+# clangd and possibly more
+.cache/
+
+# Mac OS
+.DS_Store
+
+flake-regressions
+
+# direnv
+.direnv/
