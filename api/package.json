@@ -3,6 +3,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run --exclude '**/integration/**'",
     "test:integration": "vitest run src/__tests__/integration/",
     "migrate": "tsx db/migrate.ts",
@@ -19,6 +20,7 @@
     "esbuild": "^0.21.4",
     "npm-run-all2": "^6.2.0",
     "tsx": "^4.19.0",
+    "typescript": "^5.9.3",
     "vitest": "^4.0.17"
   },
   "dependencies": {
