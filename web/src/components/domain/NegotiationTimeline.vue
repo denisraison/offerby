@@ -6,6 +6,7 @@ export interface TimelineEvent {
   from: 'buyer' | 'seller'
   amount: number
   time: string
+  buyerName?: string
 }
 
 const props = defineProps<{
@@ -39,6 +40,7 @@ const currentOffer = () => {
         :class="event.from"
         :style="{ left: getMarkerPosition(event.amount) }"
       >
+        <span v-if="event.buyerName" class="marker-buyer">{{ event.buyerName }}</span>
         <span class="marker-amount">{{ formatCurrency(event.amount) }}</span>
         <span class="marker-dot" />
         <span class="marker-time">{{ event.time }}</span>
@@ -86,6 +88,13 @@ const currentOffer = () => {
   flex-direction: column;
   align-items: center;
   gap: var(--space-xs);
+}
+
+.marker-buyer {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--charcoal-soft);
+  white-space: nowrap;
 }
 
 .marker-amount {

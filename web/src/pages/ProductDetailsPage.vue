@@ -54,24 +54,22 @@ const isSeller = computed(() =>
   authStore.user && product.value && authStore.user.id === product.value.sellerId
 )
 
-const userOffers = computed(() => {
-  if (!product.value || !authStore.user) return []
-  return product.value.offers.filter(
-    (o) => o.buyerId === authStore.user!.id || product.value!.sellerId === authStore.user!.id
-  )
+const allOffers = computed(() => {
+  if (!product.value) return []
+  return product.value.offers
 })
 
 const pendingOffer = computed(() =>
-  userOffers.value.find((o) => o.status === 'pending')
+  allOffers.value.find((o) => o.status === 'pending')
 )
 
 const acceptedOffer = computed(() =>
-  userOffers.value.find((o) => o.status === 'accepted' && o.buyerId === authStore.user?.id)
+  allOffers.value.find((o) => o.status === 'accepted' && o.buyerId === authStore.user?.id)
 )
 
 const timelineEvents = computed(() => {
   if (!product.value) return []
-  return userOffers.value.map((offer) => ({
+  return allOffers.value.map((offer) => ({
     type: offer.parentOfferId ? 'counter' as const : 'offer' as const,
     from: offer.proposedBy,
     amount: offer.amount,
@@ -79,6 +77,7 @@ const timelineEvents = computed(() => {
       dateStyle: 'short',
       timeStyle: 'short',
     }),
+    buyerName: offer.buyerName,
   }))
 })
 
@@ -110,9 +109,7 @@ const handleSubmitOffer = async () => {
   submitting.value = true
   try {
     await createOffer(product.value.id, amount)
-    showOfferForm.value = false
-    offerAmount.value = ''
-    await loadProduct(product.value.id)
+    router.push('/products')
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to submit offer'
   } finally {
@@ -132,9 +129,7 @@ const handleCounter = async () => {
   submitting.value = true
   try {
     await counterOffer(pendingOffer.value.id, amount)
-    showCounterForm.value = false
-    counterAmount.value = ''
-    await loadProduct(product.value!.id)
+    router.push('/products')
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to counter offer'
   } finally {
@@ -148,7 +143,7 @@ const handleAccept = async () => {
   submitting.value = true
   try {
     await acceptOffer(pendingOffer.value.id)
-    await loadProduct(product.value.id)
+    router.push('/products')
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to accept offer'
   } finally {
@@ -166,7 +161,7 @@ const handlePurchase = async () => {
   submitting.value = true
   try {
     await purchaseProduct(product.value.id, acceptedOffer.value?.id)
-    await loadProduct(product.value.id)
+    router.push('/products')
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to complete purchase'
   } finally {
