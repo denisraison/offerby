@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { writeFile, mkdir } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { authMiddleware, type AuthUser } from '../middleware/auth.js'
 import { createImage } from '../../db/repositories/images.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -11,9 +12,10 @@ const UPLOADS_DIR = join(__dirname, '..', '..', 'uploads')
 const MAX_SIZE = 5 * 1024 * 1024
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-const upload = new Hono()
+const upload = new Hono<{ Variables: { user: AuthUser } }>()
 
-upload.post('/', async (c) => {
+upload.post('/', authMiddleware, async (c) => {
+  const user = c.get('user')
   const body = await c.req.parseBody()
   const file = body['file']
 
@@ -38,7 +40,7 @@ upload.post('/', async (c) => {
   const buffer = await file.arrayBuffer()
   await writeFile(filepath, Buffer.from(buffer))
 
-  const result = await createImage(`/uploads/${filename}`)
+  const result = await createImage(`/uploads/${filename}`, user.id)
 
   return c.json({ id: result.id, path: result.path })
 })

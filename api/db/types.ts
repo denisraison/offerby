@@ -28,6 +28,7 @@ export interface ProductsTable {
 export interface ProductImagesTable {
   id: Generated<number>
   product_id: number | null
+  uploaded_by: number | null
   path: string
   display_order: ColumnType<number, number | undefined, number>
   created_at: ColumnType<Date, never, never>
