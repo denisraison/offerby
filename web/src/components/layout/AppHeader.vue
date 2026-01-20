@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppAvatar from '@/components/base/AppAvatar.vue'
+import { useAuthStore } from '@/stores/auth'
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+const handleLogout = () => {
+  authStore.logout()
+  router.push('/login')
+}
 
 const props = defineProps<{
   user?: {
@@ -43,8 +52,10 @@ const isActive = (path: string) => route.path.startsWith(path)
     </nav>
 
     <div v-if="user" class="user-menu">
+      <RouterLink to="/products/new" class="sell-link">Sell</RouterLink>
       <span class="user-email">{{ user.email }}</span>
       <AppAvatar :name="user.name" :src="user.avatar" :initials="emailInitials" />
+      <button class="logout-btn" @click="handleLogout">Logout</button>
     </div>
     <div v-else class="auth-links">
       <RouterLink to="/login" class="nav-link">Log in</RouterLink>
@@ -132,9 +143,41 @@ const isActive = (path: string) => route.path.startsWith(path)
   gap: var(--space-md);
 }
 
+.sell-link {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--coral);
+  color: white;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 100px;
+  transition: all 0.3s var(--ease-out);
+}
+
+.sell-link:hover {
+  background: var(--forest);
+}
+
 .user-email {
   font-size: 0.875rem;
   font-weight: 500;
+  color: var(--charcoal);
+}
+
+.logout-btn {
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: 1px solid var(--charcoal-soft);
+  color: var(--charcoal-soft);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: all 0.3s var(--ease-out);
+}
+
+.logout-btn:hover {
+  border-color: var(--charcoal);
   color: var(--charcoal);
 }
 
