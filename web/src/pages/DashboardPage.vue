@@ -88,7 +88,7 @@ const fetchData = async () => {
     ])
 
     products.value = productsData.items
-    transactions.value = transactionsData
+    transactions.value = transactionsData.items
     negotiations.value = [...sellerNegotiations.items, ...buyerNegotiations.items]
     acceptedOffers.value = acceptedData.items
   } catch (err) {
