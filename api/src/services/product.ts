@@ -1,6 +1,7 @@
 import type { ProductsRepository, ProductCursor } from '../../db/repositories/products.js'
 import type { OffersRepository } from '../../db/repositories/offers.js'
 import { DuplicateOfferError, VersionConflictError } from '../../db/errors.js'
+import { extractPagination } from '../lib/pagination.js'
 import { computeOfferPermissions, computeProductPermissions } from '../lib/permissions.js'
 import {
   NotFoundError,
@@ -16,23 +17,6 @@ interface ProductServiceDeps {
 }
 
 export const createProductService = ({ products, offers }: ProductServiceDeps) => {
-  function extractPagination<T extends { createdAt: Date; id: number }>(
-    items: T[],
-    limit: number
-  ): { items: T[]; hasMore: boolean; nextCursor?: ProductCursor } {
-    const hasMore = items.length > limit
-    const pageItems = hasMore ? items.slice(0, limit) : items
-    const nextCursor =
-      hasMore && pageItems.length > 0
-        ? {
-            createdAt: pageItems[pageItems.length - 1].createdAt,
-            id: pageItems[pageItems.length - 1].id,
-          }
-        : undefined
-
-    return { items: pageItems, hasMore, nextCursor }
-  }
-
   return {
     async listAvailableProducts(cursor?: ProductCursor, limit = 50) {
       const results = await products.findAvailable(cursor, limit)

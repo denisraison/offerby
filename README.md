@@ -96,3 +96,19 @@ By using [PGlite](https://github.com/electric-sql/pglite) (an in-process Postgre
 ```bash
 cd api && npm test
 ```
+
+## Tradeoffs
+
+This is a 2-day coding challenge. I optimised for demonstrating architecture and core logic, not 100% production hardening yet :(
+
+**No rate limiting.** The auth endpoints are wide open. I'd add this in prod but it's noise for a code review I think...
+
+**Minimal password requirements.** Just `min(6)`. Real systems need complexity rules, breach checking. Not the interesting part of this exercise.
+
+**JWT_SECRET validated at runtime, not startup.** The server boots fine without it and only fails when someone logs in. Should fail fast. Easy fix, just didn't prioritise it.
+
+**Local file uploads.** Images go to `./uploads/`. Works for demo, won't scale. Would use S3 or similar.
+
+**No transaction pagination.** Sellers with thousands of sales get them all at once. Pagination exists elsewhere, just didn't wire it here.
+
+They're my conscious scope cuts. The architecture, testing approach, and business logic are the things worth evaluating I would think.

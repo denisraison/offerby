@@ -2,6 +2,7 @@ import type { OffersRepository } from '../../db/repositories/offers.js'
 import type { ProductsRepository } from '../../db/repositories/products.js'
 import type { OfferCursor } from '../../db/repositories/offers.js'
 import { VersionConflictError } from '../../db/errors.js'
+import { extractPagination } from '../lib/pagination.js'
 import {
   NotFoundError,
   ForbiddenError,
@@ -61,23 +62,6 @@ export const createOfferService = ({ offers, products }: OfferServiceDeps) => {
     }
 
     return { offer, userRole }
-  }
-
-  function extractPagination<T extends { createdAt: Date; id: number }>(
-    items: T[],
-    limit: number
-  ): { items: T[]; hasMore: boolean; nextCursor?: OfferCursor } {
-    const hasMore = items.length > limit
-    const pageItems = hasMore ? items.slice(0, limit) : items
-    const nextCursor =
-      hasMore && pageItems.length > 0
-        ? {
-            createdAt: pageItems[pageItems.length - 1].createdAt,
-            id: pageItems[pageItems.length - 1].id,
-          }
-        : undefined
-
-    return { items: pageItems, hasMore, nextCursor }
   }
 
   return {

@@ -26,13 +26,13 @@ export const purchaseSchema = z.object({
 })
 
 export const loginSchema = z.object({
-  email: z.string().min(1),
-  password: z.string().min(1),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
 })
 
 export const registerSchema = z.object({
-  email: z.string().min(1),
-  password: z.string().min(1),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
   name: z.string().min(1),
 })
 
@@ -60,6 +60,17 @@ export const offersQuerySchema = z.object({
 
 export const productsQuerySchema = z.object({
   seller: z.literal('me').optional(),
+  limit: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .pipe(z.number().min(1).max(100))
+    .optional()
+    .default(50),
+  cursor: cursorSchema,
+})
+
+export const transactionsQuerySchema = z.object({
   limit: z
     .string()
     .regex(/^\d+$/)
