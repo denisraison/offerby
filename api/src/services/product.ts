@@ -18,8 +18,8 @@ interface ProductServiceDeps {
 
 export const createProductService = ({ products, offers }: ProductServiceDeps) => {
   return {
-    async listAvailableProducts(cursor?: ProductCursor, limit = 50) {
-      const results = await products.findAvailable(cursor, limit)
+    async listAvailableProducts(cursor?: ProductCursor, limit = 50, status?: 'available' | 'reserved') {
+      const results = await products.findAvailable(cursor, limit, status)
       return extractPagination(results, limit)
     },
 

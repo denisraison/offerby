@@ -60,6 +60,7 @@ export const offersQuerySchema = z.object({
 
 export const productsQuerySchema = z.object({
   seller: z.literal('me').optional(),
+  status: z.enum(['available', 'reserved']).optional(),
   limit: z
     .string()
     .regex(/^\d+$/)

@@ -5,7 +5,7 @@ import { VersionConflictError } from '../errors.js'
 export type ProductCursor = { createdAt: Date; id: number }
 
 export const createProductsRepository = (database: Kysely<Database>) => ({
-  findAvailable: (cursor?: ProductCursor, limit = 50) =>
+  findAvailable: (cursor?: ProductCursor, limit = 50, status?: 'available' | 'reserved') =>
     database
       .selectFrom('products')
       .innerJoin('users', 'users.id', 'products.seller_id')
@@ -14,7 +14,8 @@ export const createProductsRepository = (database: Kysely<Database>) => ({
           .onRef('product_images.product_id', '=', 'products.id')
           .on('product_images.display_order', '=', 0)
       )
-      .where('products.status', '!=', 'sold')
+      .$if(status !== undefined, (qb) => qb.where('products.status', '=', status!))
+      .$if(status === undefined, (qb) => qb.where('products.status', '!=', 'sold'))
       .$if(cursor !== undefined, (qb) =>
         qb.where(({ eb, and, or }) =>
           or([

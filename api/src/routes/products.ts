@@ -12,7 +12,7 @@ import type { AppVariables } from '../context.js'
 
 const products = new Hono<{ Variables: AppVariables }>()
   .get('/', authMiddleware, zValidator('query', productsQuerySchema), async (c) => {
-    const { seller, limit, cursor } = c.req.valid('query')
+    const { seller, status, limit, cursor } = c.req.valid('query')
     const { product: productService } = c.get('services')
 
     if (seller === 'me') {
@@ -21,7 +21,7 @@ const products = new Hono<{ Variables: AppVariables }>()
       return c.json(result)
     }
 
-    const result = await productService.listAvailableProducts(cursor, limit)
+    const result = await productService.listAvailableProducts(cursor, limit, status)
     return c.json(result)
   })
   .get('/:id', authMiddleware, zValidator('param', idParamSchema), async (c) => {

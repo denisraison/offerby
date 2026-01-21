@@ -8,8 +8,9 @@ import type {
   SellerProductItem,
 } from '@/types/api'
 
-export function getProducts(): Promise<{ items: ProductListItem[] }> {
-  return api.get<{ items: ProductListItem[] }>('/products')
+export function getProducts(status?: 'available' | 'reserved'): Promise<{ items: ProductListItem[] }> {
+  const params = status ? `?status=${status}` : ''
+  return api.get<{ items: ProductListItem[] }>(`/products${params}`)
 }
 
 export function getMyProducts(): Promise<{ items: SellerProductItem[] }> {
