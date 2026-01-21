@@ -127,8 +127,6 @@ This is a 2-day coding challenge. I optimised for demonstrating architecture and
 
 **Minimal password requirements.** Just `min(6)`. Real systems need complexity rules, breach checking. Not the interesting part of this exercise.
 
-**JWT_SECRET validated at runtime, not startup.** The server boots fine without it and only fails when someone logs in. Should fail fast. Easy fix, just didn't prioritise it.
-
-**Local file uploads.** Images go to `./uploads/`. Works for demo, won't scale. Would use S3 or similar.
+**Local file uploads.** Images go to `./uploads/`. Works for demo, won't scale. Would use S3 or similar storage system.
 
 They're my conscious scope cuts. The architecture, testing approach, and business logic are the things worth evaluating I would think.
