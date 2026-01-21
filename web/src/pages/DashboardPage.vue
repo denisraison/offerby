@@ -87,10 +87,10 @@ const fetchData = async () => {
       getAcceptedOffers(),
     ])
 
-    products.value = productsData
+    products.value = productsData.items
     transactions.value = transactionsData
-    negotiations.value = [...sellerNegotiations, ...buyerNegotiations]
-    acceptedOffers.value = acceptedData
+    negotiations.value = [...sellerNegotiations.items, ...buyerNegotiations.items]
+    acceptedOffers.value = acceptedData.items
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load dashboard data'
   } finally {

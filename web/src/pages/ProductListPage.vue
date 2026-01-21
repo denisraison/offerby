@@ -17,7 +17,7 @@ const error = ref<string | null>(null)
 
 onMounted(async () => {
   try {
-    products.value = await getProducts()
+    products.value = (await getProducts()).items
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load products'
   } finally {

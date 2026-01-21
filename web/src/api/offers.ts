@@ -21,10 +21,10 @@ export const purchaseProduct = (productId: number, offerId?: number) =>
   api.post<PurchaseResponse>(`/products/${productId}/purchase`, { offerId })
 
 export const getSellerPendingNegotiations = () =>
-  api.get<PendingNegotiation[]>('/offers?status=pending&seller=me')
+  api.get<{ items: PendingNegotiation[] }>('/offers?status=pending&seller=me')
 
 export const getBuyerPendingNegotiations = () =>
-  api.get<PendingNegotiation[]>('/offers?status=pending&buyer=me')
+  api.get<{ items: PendingNegotiation[] }>('/offers?status=pending&buyer=me')
 
 export const getAcceptedOffers = () =>
-  api.get<AcceptedOffer[]>('/offers?status=accepted&buyer=me')
+  api.get<{ items: AcceptedOffer[] }>('/offers?status=accepted&buyer=me')

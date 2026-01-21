@@ -8,12 +8,12 @@ import type {
   SellerProductItem,
 } from '@/types/api'
 
-export function getProducts(): Promise<ProductListItem[]> {
-  return api.get<ProductListItem[]>('/products')
+export function getProducts(): Promise<{ items: ProductListItem[] }> {
+  return api.get<{ items: ProductListItem[] }>('/products')
 }
 
-export function getMyProducts(): Promise<SellerProductItem[]> {
-  return api.get<SellerProductItem[]>('/products?seller=me')
+export function getMyProducts(): Promise<{ items: SellerProductItem[] }> {
+  return api.get<{ items: SellerProductItem[] }>('/products?seller=me')
 }
 
 export function getProduct(id: number): Promise<ProductDetail> {
