@@ -13,8 +13,10 @@ import {
   createProductWithPendingOfferFromBuyer,
   createProductWithCounterFromSeller,
   createProductWithAcceptedOffer,
+  createPendingOffer,
   testUsers,
 } from './utils/productFixtures'
+import type { ProductDetail } from '@/types/api'
 
 vi.mock('../api/products')
 vi.mock('../api/offers')
@@ -107,14 +109,14 @@ describe('ProductDetailsPage', () => {
       authStore.token = 'test-token'
     })
 
-    it('shows "This is your listing" for own products', async () => {
+    it('shows no offers message for own products without offers', async () => {
       const product = createOwnProduct(testUsers.seller.id)
       mockGetProduct.mockResolvedValue(product)
 
       const { wrapper } = await mountPage()
       await flushPromises()
 
-      expect(wrapper.text()).toContain('This is your listing')
+      expect(wrapper.text()).toContain('No offers yet')
     })
 
     it('shows Accept and Counter buttons when buyer has pending offer', async () => {
@@ -129,7 +131,7 @@ describe('ProductDetailsPage', () => {
       const { wrapper } = await mountPage()
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Accept Offer')
+      expect(wrapper.text()).toContain('Accept $50')
       expect(wrapper.text()).toContain('Counter')
     })
 
@@ -285,7 +287,7 @@ describe('ProductDetailsPage', () => {
       const { wrapper } = await mountPage()
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Waiting for response...')
+      expect(wrapper.text()).toContain('Waiting for seller to respond')
     })
 
     it('shows Accept and Counter when seller has countered', async () => {
@@ -299,7 +301,7 @@ describe('ProductDetailsPage', () => {
       const { wrapper } = await mountPage()
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Accept Offer')
+      expect(wrapper.text()).toContain('Accept $75')
       expect(wrapper.text()).toContain('Counter')
     })
 
@@ -387,6 +389,74 @@ describe('ProductDetailsPage', () => {
 
       expect(wrapper.text()).not.toContain('Make an Offer')
       expect(wrapper.text()).not.toContain('Buy Now')
+    })
+  })
+
+  describe('Multiple Buyers Scenario', () => {
+    it('Buyer B can make initial offer when seller has countered Buyer A', async () => {
+      const authStore = useAuthStore()
+      authStore.user = testUsers.otherBuyer
+      authStore.token = 'test-token'
+
+      const product: ProductDetail = {
+        ...createAvailableProduct(),
+        canMakeInitialOffer: true,
+        offers: [
+          createPendingOffer({
+            id: 1,
+            buyerId: testUsers.buyer.id,
+            buyerName: testUsers.buyer.name,
+            amount: 7000,
+            proposedBy: 'seller',
+            canCounter: false,
+            canAccept: false,
+          }),
+        ],
+      }
+      mockGetProduct.mockResolvedValue(product)
+
+      const { wrapper } = await mountPage()
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Make an Offer')
+    })
+
+    it('Buyer B sees waiting state for their own pending offer', async () => {
+      const authStore = useAuthStore()
+      authStore.user = testUsers.otherBuyer
+      authStore.token = 'test-token'
+
+      const product: ProductDetail = {
+        ...createAvailableProduct(),
+        canMakeInitialOffer: false,
+        offers: [
+          createPendingOffer({
+            id: 1,
+            buyerId: testUsers.buyer.id,
+            buyerName: testUsers.buyer.name,
+            amount: 7000,
+            proposedBy: 'seller',
+            canCounter: false,
+            canAccept: false,
+          }),
+          createPendingOffer({
+            id: 2,
+            buyerId: testUsers.otherBuyer.id,
+            buyerName: testUsers.otherBuyer.name,
+            amount: 6000,
+            proposedBy: 'buyer',
+            canCounter: false,
+            canAccept: false,
+          }),
+        ],
+      }
+      mockGetProduct.mockResolvedValue(product)
+
+      const { wrapper } = await mountPage()
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Waiting for seller to respond')
+      expect(wrapper.text()).not.toContain('Make an Offer')
     })
   })
 

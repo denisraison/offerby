@@ -5,7 +5,8 @@ import PageLayout from '@/components/layout/PageLayout.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import AppBadge from '@/components/base/AppBadge.vue'
 import AppInput from '@/components/base/AppInput.vue'
-import NegotiationTimeline from '@/components/domain/NegotiationTimeline.vue'
+import SellerOffersSection from '@/components/domain/SellerOffersSection.vue'
+import BuyerNegotiationSection from '@/components/domain/BuyerNegotiationSection.vue'
 import { getProduct } from '@/api/products'
 import { createOffer, counterOffer, acceptOffer, purchaseProduct } from '@/api/offers'
 import { formatCurrency } from '@/utils/currency'
@@ -60,39 +61,20 @@ const allOffers = computed(() => {
   return product.value.offers
 })
 
-const pendingOffer = computed(() =>
-  [...allOffers.value].reverse().find((o) => o.status === 'pending')
-)
+const myPendingOffer = computed(() => {
+  if (!authStore.user) return undefined
+  return [...allOffers.value].reverse().find(
+    (o) => o.status === 'pending' && o.buyerId === authStore.user!.id
+  )
+})
 
 const acceptedOffer = computed(() =>
   allOffers.value.find((o) => o.status === 'accepted' && o.buyerId === authStore.user?.id)
 )
 
-const timelineEvents = computed(() => {
-  if (!product.value) return []
-  return allOffers.value.map((offer) => ({
-    type: offer.parentOfferId ? 'counter' as const : 'offer' as const,
-    from: offer.proposedBy,
-    amount: offer.amount,
-    time: new Date(offer.createdAt).toLocaleString('en-AU', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }),
-    buyerName: offer.buyerName,
-  }))
-})
+const hasOffers = computed(() => allOffers.value.length > 0)
 
-const hasNegotiation = computed(() => timelineEvents.value.length > 0)
-
-const currentOfferAmount = computed(() =>
-  pendingOffer.value?.amount ?? acceptedOffer.value?.amount ?? 0
-)
-
-const isWaitingForResponse = computed(() => {
-  if (!pendingOffer.value || !authStore.user || !product.value) return false
-  const userRole = authStore.user.id === pendingOffer.value.buyerId ? 'buyer' : 'seller'
-  return pendingOffer.value.proposedBy === userRole
-})
+const selectedOfferId = ref<number | null>(null)
 
 const handleMakeOffer = () => {
   if (!authStore.isAuthenticated) {
@@ -118,38 +100,46 @@ const handleSubmitOffer = async () => {
   }
 }
 
-const handleStartCounter = () => {
+const handleStartCounter = (offerId?: number) => {
+  selectedOfferId.value = offerId ?? myPendingOffer.value?.id ?? null
   showCounterForm.value = true
 }
 
 const handleCounter = async () => {
-  if (!counterAmount.value || !pendingOffer.value) return
+  const offerId = selectedOfferId.value ?? myPendingOffer.value?.id
+  if (!counterAmount.value || !offerId) return
   const amount = parseFloat(counterAmount.value)
   if (isNaN(amount) || amount <= 0) return
 
   submitting.value = true
   try {
-    await counterOffer(pendingOffer.value.id, amount)
+    await counterOffer(offerId, amount)
     router.push('/products')
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to counter offer'
   } finally {
     submitting.value = false
+    selectedOfferId.value = null
   }
 }
 
-const handleAccept = async () => {
-  if (!pendingOffer.value || !product.value) return
+const handleAccept = async (offerId?: number) => {
+  const id = offerId ?? myPendingOffer.value?.id
+  if (!id || !product.value) return
 
   submitting.value = true
   try {
-    await acceptOffer(pendingOffer.value.id)
+    await acceptOffer(id)
     router.push('/products')
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to accept offer'
   } finally {
     submitting.value = false
   }
+}
+
+const handleSellerCounter = (_buyerId: number, offerId: number) => {
+  handleStartCounter(offerId)
 }
 
 const handlePurchase = async () => {
@@ -229,61 +219,55 @@ const handlePurchase = async () => {
           </div>
         </div>
 
-        <div v-if="hasNegotiation" class="negotiation-section">
-          <h2 class="section-title">Negotiation</h2>
-          <NegotiationTimeline
-            :events="timelineEvents"
-            :asking-price="product.price"
-          />
-          <p v-if="currentOfferAmount" class="current-offer">
-            Current offer: <strong>{{ formatCurrency(currentOfferAmount) }}</strong>
-            <span v-if="acceptedOffer" class="accepted-badge">Accepted</span>
-          </p>
-          <p v-if="isWaitingForResponse" class="waiting-message">
-            Waiting for response...
-          </p>
-        </div>
-
-        <div class="product-actions">
-          <template v-if="product.status === 'sold'">
+        <template v-if="product.status === 'sold'">
+          <div class="product-actions">
             <p class="sold-message">This item has been sold</p>
-          </template>
+          </div>
+        </template>
 
-          <template v-else-if="isSeller">
-            <p class="seller-message">This is your listing</p>
-            <template v-if="pendingOffer && pendingOffer.canAccept">
-              <div v-if="showCounterForm" class="offer-form">
-                <AppInput
-                  v-model="counterAmount"
-                  type="number"
-                  placeholder="Enter counter amount"
-                />
-                <div class="offer-actions">
-                  <AppButton variant="ghost" @click="showCounterForm = false" :disabled="submitting">
-                    Cancel
-                  </AppButton>
-                  <AppButton variant="primary" @click="handleCounter" :disabled="submitting">
-                    {{ submitting ? 'Sending...' : 'Send Counter' }}
-                  </AppButton>
-                </div>
-              </div>
-              <div v-else class="offer-actions">
-                <AppButton variant="outline" @click="handleStartCounter" :disabled="submitting">
-                  Counter
+        <template v-else-if="isSeller">
+          <div v-if="showCounterForm" class="counter-modal">
+            <div class="counter-modal-content">
+              <h3>Counter Offer</h3>
+              <AppInput
+                v-model="counterAmount"
+                type="number"
+                placeholder="Enter counter amount"
+                label="Your counter"
+              />
+              <div class="counter-actions">
+                <AppButton variant="ghost" @click="showCounterForm = false; selectedOfferId = null" :disabled="submitting">
+                  Cancel
                 </AppButton>
-                <AppButton variant="primary" @click="handleAccept" :disabled="submitting">
-                  {{ submitting ? 'Accepting...' : 'Accept Offer' }}
+                <AppButton variant="primary" @click="handleCounter" :disabled="submitting">
+                  {{ submitting ? 'Sending...' : 'Send Counter' }}
                 </AppButton>
               </div>
-            </template>
-          </template>
+            </div>
+          </div>
 
-          <template v-else>
-            <div v-if="showOfferForm" class="offer-form">
+          <SellerOffersSection
+            v-if="hasOffers"
+            :offers="allOffers"
+            :asking-price="product.price"
+            :submitting="submitting"
+            @counter="handleSellerCounter"
+            @accept="handleAccept"
+          />
+          <div v-else class="no-offers">
+            <p>No offers yet</p>
+          </div>
+        </template>
+
+        <template v-else>
+          <div v-if="showOfferForm" class="offer-form-section">
+            <h2 class="section-title">Make an Offer</h2>
+            <div class="offer-form">
               <AppInput
                 v-model="offerAmount"
                 type="number"
                 placeholder="Enter your offer"
+                label="Your offer"
               />
               <div class="offer-actions">
                 <AppButton variant="ghost" @click="showOfferForm = false" :disabled="submitting">
@@ -294,61 +278,63 @@ const handlePurchase = async () => {
                 </AppButton>
               </div>
             </div>
+          </div>
 
-            <template v-else-if="acceptedOffer">
-              <AppButton variant="primary" @click="handlePurchase" :disabled="submitting">
+          <div v-else-if="showCounterForm" class="offer-form-section">
+            <h2 class="section-title">Counter Offer</h2>
+            <div class="offer-form">
+              <AppInput
+                v-model="counterAmount"
+                type="number"
+                placeholder="Enter counter amount"
+                label="Your counter"
+              />
+              <div class="offer-actions">
+                <AppButton variant="ghost" @click="showCounterForm = false" :disabled="submitting">
+                  Cancel
+                </AppButton>
+                <AppButton variant="primary" @click="handleCounter" :disabled="submitting">
+                  {{ submitting ? 'Sending...' : 'Send Counter' }}
+                </AppButton>
+              </div>
+            </div>
+          </div>
+
+          <template v-else>
+            <BuyerNegotiationSection
+              v-if="authStore.user"
+              :offers="allOffers"
+              :current-user-id="authStore.user.id"
+              :asking-price="product.price"
+              :submitting="submitting"
+              :can-make-initial-offer="product.canMakeInitialOffer"
+              @make-offer="handleMakeOffer"
+              @counter="handleStartCounter()"
+              @accept="handleAccept()"
+            />
+
+            <div v-if="acceptedOffer" class="purchase-section">
+              <AppButton variant="primary" size="lg" @click="handlePurchase" :disabled="submitting">
                 {{ submitting ? 'Processing...' : `Buy Now - ${formatCurrency(acceptedOffer.amount)}` }}
               </AppButton>
-            </template>
+            </div>
 
-            <template v-else-if="pendingOffer && pendingOffer.canAccept">
-              <div v-if="showCounterForm" class="offer-form">
-                <AppInput
-                  v-model="counterAmount"
-                  type="number"
-                  placeholder="Enter counter amount"
-                />
-                <div class="offer-actions">
-                  <AppButton variant="ghost" @click="showCounterForm = false" :disabled="submitting">
-                    Cancel
-                  </AppButton>
-                  <AppButton variant="primary" @click="handleCounter" :disabled="submitting">
-                    {{ submitting ? 'Sending...' : 'Send Counter' }}
-                  </AppButton>
-                </div>
+            <div v-else-if="product.canPurchase && !myPendingOffer" class="purchase-section">
+              <div class="purchase-divider">
+                <span>or</span>
               </div>
-              <div v-else class="offer-actions">
-                <AppButton variant="outline" @click="handleStartCounter" :disabled="submitting">
-                  Counter
-                </AppButton>
-                <AppButton variant="primary" @click="handleAccept" :disabled="submitting">
-                  {{ submitting ? 'Accepting...' : 'Accept Offer' }}
-                </AppButton>
-              </div>
-            </template>
-
-            <template v-else-if="product.canMakeInitialOffer">
-              <AppButton variant="primary" @click="handleMakeOffer">
-                Make an Offer
+              <AppButton variant="outline" @click="handlePurchase" :disabled="submitting">
+                {{ submitting ? 'Processing...' : `Buy Now at Full Price - ${formatCurrency(product.price)}` }}
               </AppButton>
-              <AppButton v-if="product.canPurchase" variant="outline" @click="handlePurchase" :disabled="submitting">
-                {{ submitting ? 'Processing...' : `Buy Now - ${formatCurrency(product.price)}` }}
-              </AppButton>
-            </template>
+            </div>
 
-            <template v-else-if="product.canPurchase">
-              <AppButton variant="primary" @click="handlePurchase" :disabled="submitting">
-                {{ submitting ? 'Processing...' : `Buy Now - ${formatCurrency(product.price)}` }}
-              </AppButton>
-            </template>
-
-            <template v-else-if="!authStore.isAuthenticated">
+            <div v-if="!authStore.isAuthenticated" class="login-prompt">
               <AppButton variant="primary" @click="router.push('/login')">
                 Login to Make an Offer
               </AppButton>
-            </template>
+            </div>
           </template>
-        </div>
+        </template>
       </div>
     </div>
   </PageLayout>
@@ -522,40 +508,55 @@ const handlePurchase = async () => {
   color: var(--charcoal);
 }
 
-.current-offer {
-  font-size: 0.9375rem;
-  color: var(--charcoal-soft);
-  margin-top: var(--space-md);
-}
-
-.current-offer strong {
-  color: var(--coral);
-}
-
-.accepted-badge {
-  display: inline-block;
-  margin-left: var(--space-sm);
-  padding: 2px 8px;
-  background: var(--forest);
-  color: var(--cream);
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.waiting-message {
-  font-size: 0.875rem;
-  color: var(--charcoal-soft);
-  font-style: italic;
-  margin-top: var(--space-sm);
-}
-
 .product-actions {
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
   padding-top: var(--space-lg);
   border-top: 1px solid var(--cream-dark);
+}
+
+.sold-message {
+  font-size: 0.9375rem;
+  color: var(--charcoal-soft);
+}
+
+.counter-modal {
+  background: var(--cream);
+  border: 1px solid var(--cream-dark);
+  border-radius: 16px;
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.counter-modal-content h3 {
+  margin: 0 0 var(--space-md);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--charcoal);
+}
+
+.counter-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.no-offers {
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--charcoal-soft);
+}
+
+.offer-form-section {
+  background: var(--cream);
+  border: 1px solid var(--cream-dark);
+  border-radius: 16px;
+  padding: var(--space-lg);
+}
+
+.offer-form-section .section-title {
+  margin-bottom: var(--space-md);
 }
 
 .offer-form {
@@ -569,10 +570,30 @@ const handlePurchase = async () => {
   gap: var(--space-sm);
 }
 
-.sold-message,
-.seller-message {
-  font-size: 0.9375rem;
+.purchase-section {
+  margin-top: var(--space-lg);
+}
+
+.purchase-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
   color: var(--charcoal-soft);
+  font-size: 0.875rem;
+}
+
+.purchase-divider::before,
+.purchase-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--cream-dark);
+}
+
+.login-prompt {
+  margin-top: var(--space-lg);
+  text-align: center;
 }
 
 @media (max-width: 1024px) {
