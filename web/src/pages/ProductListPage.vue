@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import PageLayout from '@/components/layout/PageLayout.vue'
 import AppInput from '@/components/base/AppInput.vue'
+import AppButton from '@/components/base/AppButton.vue'
 import ProductCard from '@/components/domain/ProductCard.vue'
 import { getProducts } from '@/api/products'
 import { resolveImageUrl } from '@/api/client'
 import type { ProductListItem } from '@/types/api'
 import { useAuthStore } from '@/stores/auth'
 
+const router = useRouter()
 const authStore = useAuthStore()
 
 const searchQuery = ref('')
@@ -39,12 +42,17 @@ const filteredProducts = computed(() => {
         <h1 class="page-title">Browse</h1>
         <p class="page-subtitle">Discover unique items from sellers near you</p>
       </div>
-      <div class="search-wrapper">
-        <AppInput
-          v-model="searchQuery"
-          placeholder="Search products..."
-          class="search-input"
-        />
+      <div class="header-actions">
+        <div class="search-wrapper">
+          <AppInput
+            v-model="searchQuery"
+            placeholder="Search products..."
+            class="search-input"
+          />
+        </div>
+        <AppButton variant="primary" @click="router.push('/products/new')">
+          + Sell New Item
+        </AppButton>
       </div>
     </section>
 
@@ -102,6 +110,12 @@ const filteredProducts = computed(() => {
   color: var(--charcoal-soft);
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
 .search-wrapper {
   width: 300px;
 }
@@ -135,6 +149,11 @@ const filteredProducts = computed(() => {
 
 @media (max-width: 768px) {
   .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
     flex-direction: column;
     align-items: stretch;
   }

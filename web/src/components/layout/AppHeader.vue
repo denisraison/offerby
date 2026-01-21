@@ -52,8 +52,7 @@ const isActive = (path: string) => route.path.startsWith(path)
     </nav>
 
     <div v-if="user" class="user-menu">
-      <RouterLink to="/products/new" class="sell-link">Sell</RouterLink>
-      <span class="user-email">{{ user.email }}</span>
+      <span class="user-name">{{ user.name }}</span>
       <AppAvatar :name="user.name" :src="user.avatar" :initials="emailInitials" />
       <button class="logout-btn" @click="handleLogout">Logout</button>
     </div>
@@ -102,6 +101,9 @@ const isActive = (path: string) => route.path.startsWith(path)
 }
 
 .nav {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   gap: var(--space-xl);
 }
@@ -143,22 +145,7 @@ const isActive = (path: string) => route.path.startsWith(path)
   gap: var(--space-md);
 }
 
-.sell-link {
-  padding: var(--space-sm) var(--space-md);
-  background: var(--coral);
-  color: white;
-  text-decoration: none;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border-radius: 100px;
-  transition: all 0.3s var(--ease-out);
-}
-
-.sell-link:hover {
-  background: var(--forest);
-}
-
-.user-email {
+.user-name {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--charcoal);
