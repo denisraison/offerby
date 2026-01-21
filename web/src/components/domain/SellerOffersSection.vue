@@ -148,7 +148,7 @@ const getProgressWidth = (amount: number) => {
               type="number"
               placeholder="Enter your counter"
               label="Your counter offer"
-              @update:model-value="emit('update:counterAmount', $event)"
+              @update:model-value="emit('update:counterAmount', $event ?? '')"
             />
             <div class="counter-actions">
               <AppButton variant="ghost" size="sm" :disabled="submitting" @click="emit('cancelCounter')">

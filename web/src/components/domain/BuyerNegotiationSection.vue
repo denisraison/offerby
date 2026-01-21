@@ -28,10 +28,6 @@ const myOffers = computed(() =>
   props.offers.filter((o) => o.buyerId === props.currentUserId)
 )
 
-const otherOffers = computed(() =>
-  props.offers.filter((o) => o.buyerId !== props.currentUserId)
-)
-
 const myLatestOffer = computed(() => {
   if (myOffers.value.length === 0) return null
   return [...myOffers.value].sort(
@@ -49,11 +45,6 @@ const isWaitingForSeller = computed(() => {
 const canRespondToSeller = computed(() => {
   if (!myLatestOffer.value) return false
   return myLatestOffer.value.status === 'pending' && myLatestOffer.value.canAccept
-})
-
-const otherBuyersCount = computed(() => {
-  const buyerIds = new Set(otherOffers.value.map((o) => o.buyerId))
-  return buyerIds.size
 })
 
 const formatTime = (dateStr: string) => {
@@ -135,7 +126,7 @@ const getProgressWidth = (amount: number) => {
               type="number"
               placeholder="Enter your counter"
               label="Your counter offer"
-              @update:model-value="emit('update:counterAmount', $event)"
+              @update:model-value="emit('update:counterAmount', $event ?? '')"
             />
             <div class="counter-actions">
               <AppButton variant="ghost" size="sm" :disabled="submitting" @click="emit('cancelCounter')">
@@ -174,24 +165,6 @@ const getProgressWidth = (amount: number) => {
       </div>
     </div>
 
-    <div v-if="otherOffers.length > 0" class="other-activity">
-      <div class="activity-header">
-        <span class="activity-label">Other Activity</span>
-        <span class="activity-divider" />
-        <span class="activity-count">{{ otherBuyersCount }} {{ otherBuyersCount === 1 ? 'buyer' : 'buyers' }}</span>
-      </div>
-      <div class="activity-list">
-        <div
-          v-for="offer in otherOffers"
-          :key="offer.id"
-          class="activity-item"
-        >
-          <span class="item-name">{{ offer.buyerName }}</span>
-          <span class="item-action">{{ offer.proposedBy === 'buyer' ? 'offered' : 'countered at' }}</span>
-          <span class="item-amount">{{ formatCurrency(offer.amount) }}</span>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -473,65 +446,5 @@ const getProgressWidth = (amount: number) => {
   font-size: 0.875rem;
   color: var(--charcoal-soft);
   max-width: 240px;
-}
-
-.other-activity {
-  opacity: 0.6;
-  transition: opacity 0.2s ease;
-}
-
-.other-activity:hover {
-  opacity: 1;
-}
-
-.activity-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-sm);
-}
-
-.activity-label {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--charcoal-soft);
-}
-
-.activity-divider {
-  flex: 1;
-  height: 1px;
-  background: var(--cream-dark);
-}
-
-.activity-count {
-  font-size: 0.6875rem;
-  color: var(--charcoal-soft);
-}
-
-.activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.activity-item {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 0.8125rem;
-  color: var(--charcoal-soft);
-}
-
-.item-name {
-  font-weight: 500;
-  color: var(--charcoal);
-}
-
-.item-amount {
-  font-weight: 600;
-  color: var(--charcoal);
-  margin-left: auto;
 }
 </style>

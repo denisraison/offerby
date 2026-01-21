@@ -7,6 +7,7 @@ import AppBadge from '@/components/base/AppBadge.vue'
 import AppInput from '@/components/base/AppInput.vue'
 import SellerOffersSection from '@/components/domain/SellerOffersSection.vue'
 import BuyerNegotiationSection from '@/components/domain/BuyerNegotiationSection.vue'
+import ActivityTimeline from '@/components/domain/ActivityTimeline.vue'
 import { getProduct } from '@/api/products'
 import { createOffer, counterOffer, acceptOffer, purchaseProduct } from '@/api/offers'
 import { formatCurrency } from '@/utils/currency'
@@ -246,7 +247,8 @@ const handlePurchase = async () => {
             @submit-counter="handleCounter"
             @cancel-counter="handleCancelCounter"
           />
-          <div v-else class="no-offers">
+          <ActivityTimeline v-if="hasOffers" :offers="allOffers" :seller-name="product.sellerName" />
+          <div v-if="!hasOffers" class="no-offers">
             <p>No offers yet</p>
           </div>
         </template>
@@ -288,6 +290,8 @@ const handlePurchase = async () => {
               @submit-counter="handleCounter"
               @cancel-counter="handleCancelCounter"
             />
+
+            <ActivityTimeline v-if="hasOffers" :offers="allOffers" :seller-name="product.sellerName" />
 
             <div v-if="acceptedOffer" class="purchase-section">
               <AppButton variant="primary" size="lg" @click="handlePurchase" :disabled="submitting">
