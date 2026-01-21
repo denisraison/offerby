@@ -7,7 +7,6 @@ import AppInput from '@/components/base/AppInput.vue'
 import AppButton from '@/components/base/AppButton.vue'
 import { createProduct, uploadImage } from '@/api/products'
 import { useAuthStore } from '@/stores/auth'
-import { API_BASE_URL } from '@/api/client'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -18,40 +17,38 @@ const price = ref('')
 const errors = ref<Record<string, string>>({})
 const submitting = ref(false)
 
-interface UploadedImage {
-  id: number
-  path: string
+interface PendingImage {
+  id: string
+  file: File
+  preview: string
 }
 
-const uploadedImages = ref<UploadedImage[]>([])
-const uploading = ref(false)
+const pendingImages = ref<PendingImage[]>([])
 
 const maxImages = 5
 
-const handleFileSelect = async (event: Event) => {
+const handleFileSelect = (event: Event) => {
   const input = event.target as HTMLInputElement
   if (!input.files?.length) return
 
-  uploading.value = true
-  try {
-    for (const file of input.files) {
-      if (uploadedImages.value.length >= maxImages) {
-        errors.value.images = `Maximum ${maxImages} images allowed`
-        break
-      }
-      const result = await uploadImage(file)
-      uploadedImages.value.push(result)
+  for (const file of input.files) {
+    if (pendingImages.value.length >= maxImages) {
+      errors.value.images = `Maximum ${maxImages} images allowed`
+      break
     }
-  } catch (e) {
-    errors.value.images = e instanceof Error ? e.message : 'Upload failed'
-  } finally {
-    uploading.value = false
-    input.value = ''
+    pendingImages.value.push({
+      id: crypto.randomUUID(),
+      file,
+      preview: URL.createObjectURL(file),
+    })
   }
+  input.value = ''
 }
 
-const removeImage = (id: number) => {
-  uploadedImages.value = uploadedImages.value.filter(img => img.id !== id)
+const removeImage = (id: string) => {
+  const img = pendingImages.value.find(i => i.id === id)
+  if (img) URL.revokeObjectURL(img.preview)
+  pendingImages.value = pendingImages.value.filter(i => i.id !== id)
 }
 
 const handleSubmit = async () => {
@@ -70,11 +67,17 @@ const handleSubmit = async () => {
 
   submitting.value = true
   try {
+    const imageIds: number[] = []
+    for (const pending of pendingImages.value) {
+      const result = await uploadImage(pending.file)
+      imageIds.push(result.id)
+    }
+
     await createProduct({
       name: name.value,
       description: description.value || undefined,
       price: Number(price.value),
-      imageIds: uploadedImages.value.map(img => img.id),
+      imageIds,
     })
     router.push('/products')
   } catch (e) {
@@ -122,27 +125,27 @@ const handleSubmit = async () => {
         <div class="image-upload">
           <label class="upload-label">Images</label>
 
-          <div v-if="uploadedImages.length" class="image-previews">
-            <div v-for="img in uploadedImages" :key="img.id" class="image-preview">
-              <img :src="`${API_BASE_URL}${img.path}`" alt="Product image" />
+          <div v-if="pendingImages.length" class="image-previews">
+            <div v-for="img in pendingImages" :key="img.id" class="image-preview">
+              <img :src="img.preview" alt="Product image" />
               <button type="button" class="remove-btn" @click="removeImage(img.id)">
                 &times;
               </button>
             </div>
           </div>
 
-          <label v-if="uploadedImages.length < maxImages" class="upload-area" :class="{ disabled: uploading }">
+          <label v-if="pendingImages.length < maxImages" class="upload-area" :class="{ disabled: submitting }">
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
               multiple
               class="file-input"
-              :disabled="uploading"
+              :disabled="submitting"
               @change="handleFileSelect"
             />
             <span class="upload-icon">+</span>
-            <span class="upload-text">{{ uploading ? 'Uploading...' : 'Click to upload images' }}</span>
-            <span class="upload-hint">PNG, JPG, WebP up to 5MB ({{ maxImages - uploadedImages.length }} remaining)</span>
+            <span class="upload-text">Click to add images</span>
+            <span class="upload-hint">PNG, JPG, WebP up to 5MB ({{ maxImages - pendingImages.length }} remaining)</span>
           </label>
           <p v-else class="max-images-message">Maximum {{ maxImages }} images reached</p>
 

@@ -87,9 +87,10 @@ export const createProductsRepository = (database: Kysely<Database>) => ({
       .where('id', '=', imageId)
       .where('product_id', 'is', null)
       .where('uploaded_by', '=', uploaderId)
+      .returning(['id'])
       .executeTakeFirst()
 
-    return result.numUpdatedRows > 0n
+    return result !== undefined
   },
 
   findBySeller: (sellerId: number, cursor?: ProductCursor, limit = 50) =>

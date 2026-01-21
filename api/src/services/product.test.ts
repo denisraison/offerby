@@ -6,6 +6,102 @@ import { VersionConflictError } from '../../db/errors.js'
 
 const productService = testServices.product
 
+describe('createProduct', () => {
+  beforeEach(() => truncateAll())
+  afterAll(() => closeTestDb())
+
+  it('creates product without images', async () => {
+    const seller = await createTestUser('Seller', 'seller@test.com')
+
+    const result = await productService.createProduct({
+      sellerId: seller.id,
+      name: 'Widget',
+      price: 10000,
+    })
+
+    expect(result.id).toBeDefined()
+  })
+
+  it('creates product with images', async () => {
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const img1 = await testRepos.images.create('/uploads/test1.jpg', seller.id)
+    const img2 = await testRepos.images.create('/uploads/test2.jpg', seller.id)
+
+    const result = await productService.createProduct({
+      sellerId: seller.id,
+      name: 'Widget',
+      price: 10000,
+      imageIds: [img1.id, img2.id],
+    })
+
+    const images = await testRepos.products.findImages(result.id)
+    expect(images).toHaveLength(2)
+    expect(images[0].displayOrder).toBe(0)
+    expect(images[1].displayOrder).toBe(1)
+  })
+
+  it('throws InvalidStateError when image does not exist', async () => {
+    const seller = await createTestUser('Seller', 'seller@test.com')
+
+    try {
+      await productService.createProduct({
+        sellerId: seller.id,
+        name: 'Widget',
+        price: 10000,
+        imageIds: [999],
+      })
+      expect.fail('Should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvalidStateError)
+      expect((err as Error).message).toBe('Invalid image ID or not authorised to use this image')
+    }
+  })
+
+  it('throws InvalidStateError when image belongs to another user', async () => {
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const otherUser = await createTestUser('Other', 'other@test.com')
+    const img = await testRepos.images.create('/uploads/test.jpg', otherUser.id)
+
+    try {
+      await productService.createProduct({
+        sellerId: seller.id,
+        name: 'Widget',
+        price: 10000,
+        imageIds: [img.id],
+      })
+      expect.fail('Should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvalidStateError)
+      expect((err as Error).message).toBe('Invalid image ID or not authorised to use this image')
+    }
+  })
+
+  it('throws InvalidStateError when image is already linked to a product', async () => {
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const img = await testRepos.images.create('/uploads/test.jpg', seller.id)
+
+    await productService.createProduct({
+      sellerId: seller.id,
+      name: 'First Product',
+      price: 10000,
+      imageIds: [img.id],
+    })
+
+    try {
+      await productService.createProduct({
+        sellerId: seller.id,
+        name: 'Second Product',
+        price: 20000,
+        imageIds: [img.id],
+      })
+      expect.fail('Should have thrown')
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvalidStateError)
+      expect((err as Error).message).toBe('Invalid image ID or not authorised to use this image')
+    }
+  })
+})
+
 describe('getProductDetails', () => {
   beforeEach(() => truncateAll())
   afterAll(() => closeTestDb())
