@@ -1,71 +1,35 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { counterOffer, acceptOffer } from './offer.js'
-import { InvalidStateError, ForbiddenError, NotFoundError, ConflictError } from './errors.js'
+import { describe, it, expect, beforeEach, afterAll } from 'vitest'
+import { testDb, testRepos, testServices, truncateAll, closeTestDb } from '../__tests__/setup.js'
+import { createTestUser, createTestProduct } from '../__tests__/factories.js'
+import { InvalidStateError, ForbiddenError, NotFoundError } from './errors.js'
+import { VersionConflictError } from '../../db/errors.js'
 
-vi.mock('../../db/repositories/offers.js', () => ({
-  findOfferById: vi.fn(),
-  counterOffer: vi.fn(),
-  acceptOfferWithReservation: vi.fn(),
-}))
-
-vi.mock('../../db/repositories/products.js', () => ({
-  findProductById: vi.fn(),
-}))
-
-const { findOfferById, counterOffer: counterOfferRepo, acceptOfferWithReservation } = await import(
-  '../../db/repositories/offers.js'
-)
-const { findProductById } = await import('../../db/repositories/products.js')
-
-const BUYER_ID = 1
-const SELLER_ID = 2
-const PRODUCT_ID = 10
-const OFFER_ID = 100
-
-const basePendingOffer = {
-  id: OFFER_ID,
-  productId: PRODUCT_ID,
-  buyerId: BUYER_ID,
-  sellerId: SELLER_ID,
-  amount: 5000,
-  status: 'pending' as const,
-  productStatus: 'available' as const,
-  parentOfferId: null,
-  createdAt: new Date(),
-  listingPrice: 10000,
-  sellerName: 'Seller',
-  buyerName: 'Buyer',
-}
+const offerService = testServices.offer
 
 describe('counterOffer', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
+  afterAll(() => closeTestDb())
 
   it('seller can counter buyer offer', async () => {
-    const buyerOffer = { ...basePendingOffer, proposedBy: 'buyer' as const }
-    vi.mocked(findOfferById).mockResolvedValue(buyerOffer)
-    vi.mocked(counterOfferRepo).mockResolvedValue({
-      id: 101,
-      amount: 6000,
-      proposedBy: 'seller',
-      status: 'pending',
-      createdAt: new Date(),
-    })
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
+    const offer = await testRepos.offers.create(product.id, buyer.id, 5000)
 
-    const result = await counterOffer(OFFER_ID, SELLER_ID, 6000)
+    const result = await offerService.counterOffer(offer.id, seller.id, 6000)
 
-    expect(result.id).toBe(101)
     expect(result.amount).toBe(6000)
     expect(result.proposedBy).toBe('seller')
   })
 
   it('buyer cannot counter own offer', async () => {
-    const buyerOffer = { ...basePendingOffer, proposedBy: 'buyer' as const }
-    vi.mocked(findOfferById).mockResolvedValue(buyerOffer)
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
+    const offer = await testRepos.offers.create(product.id, buyer.id, 5000)
 
     try {
-      await counterOffer(OFFER_ID, BUYER_ID, 5500)
+      await offerService.counterOffer(offer.id, buyer.id, 5500)
       expect.fail('Should have thrown')
     } catch (err) {
       expect(err).toBeInstanceOf(InvalidStateError)
@@ -74,29 +38,37 @@ describe('counterOffer', () => {
   })
 
   it('buyer can counter seller counter', async () => {
-    const sellerCounter = { ...basePendingOffer, proposedBy: 'seller' as const }
-    vi.mocked(findOfferById).mockResolvedValue(sellerCounter)
-    vi.mocked(counterOfferRepo).mockResolvedValue({
-      id: 102,
-      amount: 5500,
-      proposedBy: 'buyer',
-      status: 'pending',
-      createdAt: new Date(),
-    })
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
+    const initialOffer = await testRepos.offers.create(product.id, buyer.id, 5000)
+    await testRepos.offers.counter(initialOffer.id, product.id, buyer.id, 7000, 'seller')
+    const sellerCounter = await testDb
+      .selectFrom('counter_offers')
+      .where('parent_offer_id', '=', initialOffer.id)
+      .selectAll()
+      .executeTakeFirstOrThrow()
 
-    const result = await counterOffer(OFFER_ID, BUYER_ID, 5500)
+    const result = await offerService.counterOffer(sellerCounter.id, buyer.id, 5500)
 
-    expect(result.id).toBe(102)
     expect(result.amount).toBe(5500)
     expect(result.proposedBy).toBe('buyer')
   })
 
   it('seller cannot counter own counter', async () => {
-    const sellerCounter = { ...basePendingOffer, proposedBy: 'seller' as const }
-    vi.mocked(findOfferById).mockResolvedValue(sellerCounter)
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
+    const initialOffer = await testRepos.offers.create(product.id, buyer.id, 5000)
+    await testRepos.offers.counter(initialOffer.id, product.id, buyer.id, 7000, 'seller')
+    const sellerCounter = await testDb
+      .selectFrom('counter_offers')
+      .where('parent_offer_id', '=', initialOffer.id)
+      .selectAll()
+      .executeTakeFirstOrThrow()
 
     try {
-      await counterOffer(OFFER_ID, SELLER_ID, 6500)
+      await offerService.counterOffer(sellerCounter.id, seller.id, 6500)
       expect.fail('Should have thrown')
     } catch (err) {
       expect(err).toBeInstanceOf(InvalidStateError)
@@ -105,17 +77,24 @@ describe('counterOffer', () => {
   })
 
   it('throws NotFoundError for missing offer', async () => {
-    vi.mocked(findOfferById).mockResolvedValue(undefined)
+    const seller = await createTestUser('Seller', 'seller@test.com')
 
-    await expect(counterOffer(OFFER_ID, SELLER_ID, 6000)).rejects.toThrow(NotFoundError)
+    await expect(offerService.counterOffer(999, seller.id, 6000)).rejects.toThrow(NotFoundError)
   })
 
   it('throws InvalidStateError for non-pending offer', async () => {
-    const acceptedOffer = { ...basePendingOffer, status: 'accepted' as const, proposedBy: 'buyer' as const }
-    vi.mocked(findOfferById).mockResolvedValue(acceptedOffer)
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
+    const offer = await testRepos.offers.create(product.id, buyer.id, 5000)
+    await testDb
+      .updateTable('counter_offers')
+      .set({ status: 'accepted' })
+      .where('id', '=', offer.id)
+      .execute()
 
     try {
-      await counterOffer(OFFER_ID, SELLER_ID, 6000)
+      await offerService.counterOffer(offer.id, seller.id, 6000)
       expect.fail('Should have thrown')
     } catch (err) {
       expect(err).toBeInstanceOf(InvalidStateError)
@@ -124,11 +103,18 @@ describe('counterOffer', () => {
   })
 
   it('throws InvalidStateError for sold product', async () => {
-    const offerOnSoldProduct = { ...basePendingOffer, proposedBy: 'buyer' as const, productStatus: 'sold' as const }
-    vi.mocked(findOfferById).mockResolvedValue(offerOnSoldProduct)
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
+    const offer = await testRepos.offers.create(product.id, buyer.id, 5000)
+    await testDb
+      .updateTable('products')
+      .set({ status: 'sold' })
+      .where('id', '=', product.id)
+      .execute()
 
     try {
-      await counterOffer(OFFER_ID, SELLER_ID, 6000)
+      await offerService.counterOffer(offer.id, seller.id, 6000)
       expect.fail('Should have thrown')
     } catch (err) {
       expect(err).toBeInstanceOf(InvalidStateError)
@@ -137,11 +123,14 @@ describe('counterOffer', () => {
   })
 
   it('throws ForbiddenError for unrelated user', async () => {
-    const buyerOffer = { ...basePendingOffer, proposedBy: 'buyer' as const }
-    vi.mocked(findOfferById).mockResolvedValue(buyerOffer)
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const stranger = await createTestUser('Stranger', 'stranger@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
+    const offer = await testRepos.offers.create(product.id, buyer.id, 5000)
 
     try {
-      await counterOffer(OFFER_ID, 999, 6000)
+      await offerService.counterOffer(offer.id, stranger.id, 6000)
       expect.fail('Should have thrown')
     } catch (err) {
       expect(err).toBeInstanceOf(ForbiddenError)
@@ -151,40 +140,33 @@ describe('counterOffer', () => {
 })
 
 describe('acceptOffer', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
 
   it('seller can accept buyer offer', async () => {
-    const buyerOffer = { ...basePendingOffer, proposedBy: 'buyer' as const }
-    vi.mocked(findOfferById).mockResolvedValue(buyerOffer)
-    vi.mocked(findProductById).mockResolvedValue({
-      id: PRODUCT_ID,
-      name: 'Test Product',
-      description: null,
-      price: 10000,
-      status: 'available' as const,
-      reservedBy: null,
-      version: 1,
-      createdAt: new Date(),
-      sellerId: SELLER_ID,
-      sellerName: 'Seller',
-    })
-    vi.mocked(acceptOfferWithReservation).mockResolvedValue(true)
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
+    const offer = await testRepos.offers.create(product.id, buyer.id, 5000)
 
-    const result = await acceptOffer(OFFER_ID, SELLER_ID)
+    const result = await offerService.acceptOffer(offer.id, seller.id)
 
     expect(result.success).toBe(true)
-    expect(result.offerId).toBe(OFFER_ID)
+    expect(result.offerId).toBe(offer.id)
     expect(result.amount).toBe(5000)
+
+    const updatedProduct = await testRepos.products.findById(product.id)
+    expect(updatedProduct?.status).toBe('reserved')
+    expect(updatedProduct?.reservedBy).toBe(buyer.id)
   })
 
   it('buyer cannot accept own offer', async () => {
-    const buyerOffer = { ...basePendingOffer, proposedBy: 'buyer' as const }
-    vi.mocked(findOfferById).mockResolvedValue(buyerOffer)
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
+    const offer = await testRepos.offers.create(product.id, buyer.id, 5000)
 
     try {
-      await acceptOffer(OFFER_ID, BUYER_ID)
+      await offerService.acceptOffer(offer.id, buyer.id)
       expect.fail('Should have thrown')
     } catch (err) {
       expect(err).toBeInstanceOf(InvalidStateError)
@@ -192,29 +174,36 @@ describe('acceptOffer', () => {
     }
   })
 
-  it('throws ConflictError on version conflict', async () => {
-    const buyerOffer = { ...basePendingOffer, proposedBy: 'buyer' as const }
-    vi.mocked(findOfferById).mockResolvedValue(buyerOffer)
-    vi.mocked(findProductById).mockResolvedValue({
-      id: PRODUCT_ID,
-      name: 'Test Product',
-      description: null,
-      price: 10000,
-      status: 'available' as const,
-      reservedBy: null,
-      version: 1,
-      createdAt: new Date(),
-      sellerId: SELLER_ID,
-      sellerName: 'Seller',
-    })
-    vi.mocked(acceptOfferWithReservation).mockRejectedValue(new Error('Product version conflict'))
+  it('buyer can accept seller counter', async () => {
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
+    const initialOffer = await testRepos.offers.create(product.id, buyer.id, 5000)
+    await testRepos.offers.counter(initialOffer.id, product.id, buyer.id, 7000, 'seller')
+    const sellerCounter = await testDb
+      .selectFrom('counter_offers')
+      .where('parent_offer_id', '=', initialOffer.id)
+      .selectAll()
+      .executeTakeFirstOrThrow()
 
+    const result = await offerService.acceptOffer(sellerCounter.id, buyer.id)
+
+    expect(result.success).toBe(true)
+    expect(result.amount).toBe(7000)
+  })
+
+  it('throws ConflictError on version conflict', async () => {
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
+    const offer = await testRepos.offers.create(product.id, buyer.id, 5000)
+
+    // Simulate race condition by directly calling repo with wrong version
     try {
-      await acceptOffer(OFFER_ID, SELLER_ID)
+      await testRepos.offers.acceptWithReservation(offer.id, product.id, buyer.id, 999)
       expect.fail('Should have thrown')
     } catch (err) {
-      expect(err).toBeInstanceOf(ConflictError)
-      expect((err as Error).message).toBe('Product was modified by another user')
+      expect(err).toBeInstanceOf(VersionConflictError)
     }
   })
 })

@@ -5,6 +5,9 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import { logger } from 'hono/logger'
+import { repositories } from '../db/repositories/index.js'
+import { repositoriesMiddleware } from './middleware/repositories.js'
+import type { AppVariables } from './context.js'
 import { health } from './routes/health.js'
 import { auth } from './routes/auth.js'
 import { products } from './routes/products.js'
@@ -12,7 +15,7 @@ import { offers } from './routes/offers.js'
 import { upload } from './routes/upload.js'
 import { transactions } from './routes/transactions.js'
 
-const app = new Hono()
+const app = new Hono<{ Variables: AppVariables }>()
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404))
 
@@ -31,6 +34,7 @@ app.use(
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   })
 )
+app.use('*', repositoriesMiddleware(repositories))
 
 app.use('/uploads/*', serveStatic({ root: './' }))
 

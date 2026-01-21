@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { authMiddleware, type AuthUser } from '../middleware/auth.js'
+import { authMiddleware } from '../middleware/auth.js'
 import { InvalidStateError } from '../services/errors.js'
-import * as uploadService from '../services/upload.js'
+import type { AppVariables } from '../context.js'
 
-const upload = new Hono<{ Variables: { user: AuthUser } }>()
+const upload = new Hono<{ Variables: AppVariables }>()
   .post('/', authMiddleware, async (c) => {
     const user = c.get('user')
     const body = await c.req.parseBody()
@@ -13,6 +13,7 @@ const upload = new Hono<{ Variables: { user: AuthUser } }>()
       throw new InvalidStateError('No file provided')
     }
 
+    const { upload: uploadService } = c.get('services')
     const result = await uploadService.uploadImage(file, user.id)
     return c.json(result)
   })

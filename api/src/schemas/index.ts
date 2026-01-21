@@ -36,6 +36,14 @@ export const registerSchema = z.object({
   name: z.string().min(1),
 })
 
+const cursorSchema = z
+  .string()
+  .transform((val) => {
+    const parsed = JSON.parse(val)
+    return { createdAt: new Date(parsed.createdAt), id: parsed.id as number }
+  })
+  .optional()
+
 export const offersQuerySchema = z.object({
   status: z.enum(['pending', 'accepted']).optional(),
   seller: z.literal('me').optional(),
@@ -47,7 +55,7 @@ export const offersQuerySchema = z.object({
     .pipe(z.number().min(1).max(100))
     .optional()
     .default(50),
-  offset: z.string().regex(/^\d+$/).transform(Number).optional().default(0),
+  cursor: cursorSchema,
 })
 
 export const productsQuerySchema = z.object({
@@ -59,6 +67,6 @@ export const productsQuerySchema = z.object({
     .pipe(z.number().min(1).max(100))
     .optional()
     .default(50),
-  offset: z.string().regex(/^\d+$/).transform(Number).optional().default(0),
+  cursor: cursorSchema,
 })
 

@@ -4,8 +4,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --exclude '**/integration/**'",
-    "test:integration": "vitest run src/__tests__/integration/",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "migrate": "tsx db/migrate.ts",
     "migrate:test": "DATABASE_URL=${TEST_DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/linkby_test} tsx db/migrate.ts",
     "seed": "tsx db/seed.ts",
@@ -15,9 +15,11 @@
     "deploy": "run-s build zip update"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17",
     "@types/bcrypt": "^5.0.2",
     "@types/pg": "^8.11.6",
     "esbuild": "^0.21.4",
+    "kysely-pglite": "^0.6.1",
     "npm-run-all2": "^6.2.0",
     "tsx": "^4.19.0",
     "typescript": "^5.9.3",

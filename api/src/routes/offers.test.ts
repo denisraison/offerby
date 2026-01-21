@@ -1,27 +1,25 @@
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Hono } from 'hono'
-import { sign } from 'hono/jwt'
 import { offers } from './offers.js'
+import type { AppVariables } from '../context.js'
+import { testServices, truncateAll } from '../__tests__/setup.js'
+import { createTestUser, createTestProduct, createTestOffer, makeToken } from '../__tests__/factories.js'
 
-vi.mock('../services/offer.js', () => ({
-  listOffers: vi.fn(),
-  counterOffer: vi.fn(),
-  acceptOffer: vi.fn(),
-}))
+const TEST_SECRET = 'test-secret-for-integration'
 
-const { listOffers, counterOffer, acceptOffer } = await import('../services/offer.js')
-
-const app = new Hono()
-app.route('/api/offers', offers)
-
-const TEST_SECRET = 'test-secret-key'
-const USER_ID = 1
-
-const makeToken = (userId: number) =>
-  sign({ sub: userId, email: `user${userId}@test.com` }, TEST_SECRET, 'HS256')
+function createTestApp() {
+  const app = new Hono<{ Variables: AppVariables }>()
+  app.use('*', async (c, next) => {
+    c.set('services', testServices)
+    await next()
+  })
+  app.route('/api/offers', offers)
+  return app
+}
 
 describe('GET /api/offers', () => {
   const originalSecret = process.env.JWT_SECRET
+  const app = createTestApp()
 
   beforeAll(() => {
     process.env.JWT_SECRET = TEST_SECRET
@@ -35,9 +33,7 @@ describe('GET /api/offers', () => {
     }
   })
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
 
   it('returns 401 without auth token', async () => {
     const res = await app.request('/api/offers?status=pending&seller=me')
@@ -45,24 +41,28 @@ describe('GET /api/offers', () => {
   })
 
   it('returns offers list', async () => {
-    vi.mocked(listOffers).mockResolvedValue([
-      { id: 1, productId: 10, buyerId: 1, amount: 5000, createdAt: new Date(), productName: 'Test', productPrice: 10000, buyerName: 'Buyer' },
-    ])
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const product = await createTestProduct(seller.id, 'Test', 10000)
 
-    const token = await makeToken(USER_ID)
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    await createTestOffer(product.id, buyer.id, 5000)
+
+    const token = await makeToken(seller.id, seller.email)
+
     const res = await app.request('/api/offers?status=pending&seller=me', {
       headers: { Authorization: `Bearer ${token}` },
     })
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json).toHaveLength(1)
-    expect(json[0].id).toBe(1)
+    expect(json.items).toHaveLength(1)
+    expect(json.items[0].amount).toBe(5000)
   })
 })
 
 describe('POST /api/offers/:id/counter', () => {
   const originalSecret = process.env.JWT_SECRET
+  const app = createTestApp()
 
   beforeAll(() => {
     process.env.JWT_SECRET = TEST_SECRET
@@ -76,9 +76,7 @@ describe('POST /api/offers/:id/counter', () => {
     }
   })
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
 
   it('returns 401 without auth token', async () => {
     const res = await app.request('/api/offers/1/counter', {
@@ -90,7 +88,9 @@ describe('POST /api/offers/:id/counter', () => {
   })
 
   it('validates amount is required', async () => {
-    const token = await makeToken(USER_ID)
+    const user = await createTestUser('User', 'user@test.com')
+    const token = await makeToken(user.id, user.email)
+
     const res = await app.request('/api/offers/1/counter', {
       method: 'POST',
       headers: {
@@ -104,16 +104,15 @@ describe('POST /api/offers/:id/counter', () => {
   })
 
   it('creates counter offer and returns it', async () => {
-    vi.mocked(counterOffer).mockResolvedValue({
-      id: 101,
-      amount: 6000,
-      proposedBy: 'seller',
-      status: 'pending',
-      createdAt: new Date(),
-    })
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
 
-    const token = await makeToken(USER_ID)
-    const res = await app.request('/api/offers/100/counter', {
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const offer = await createTestOffer(product.id, buyer.id, 5000)
+
+    const token = await makeToken(seller.id, seller.email)
+
+    const res = await app.request(`/api/offers/${offer.id}/counter`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -124,13 +123,14 @@ describe('POST /api/offers/:id/counter', () => {
 
     expect(res.status).toBe(201)
     const json = await res.json()
-    expect(json.id).toBe(101)
+    expect(json.id).toBeDefined()
     expect(json.amount).toBe(6000)
   })
 })
 
 describe('POST /api/offers/:id/accept', () => {
   const originalSecret = process.env.JWT_SECRET
+  const app = createTestApp()
 
   beforeAll(() => {
     process.env.JWT_SECRET = TEST_SECRET
@@ -144,9 +144,7 @@ describe('POST /api/offers/:id/accept', () => {
     }
   })
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
 
   it('returns 401 without auth token', async () => {
     const res = await app.request('/api/offers/1/accept', { method: 'POST' })
@@ -154,14 +152,15 @@ describe('POST /api/offers/:id/accept', () => {
   })
 
   it('accepts offer and returns result', async () => {
-    vi.mocked(acceptOffer).mockResolvedValue({
-      success: true,
-      offerId: 100,
-      amount: 5000,
-    })
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
 
-    const token = await makeToken(USER_ID)
-    const res = await app.request('/api/offers/100/accept', {
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const offer = await createTestOffer(product.id, buyer.id, 5000)
+
+    const token = await makeToken(seller.id, seller.email)
+
+    const res = await app.request(`/api/offers/${offer.id}/accept`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -169,6 +168,6 @@ describe('POST /api/offers/:id/accept', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.success).toBe(true)
-    expect(json.offerId).toBe(100)
+    expect(json.offerId).toBe(offer.id)
   })
 })

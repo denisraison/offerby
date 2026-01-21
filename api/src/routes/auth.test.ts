@@ -1,21 +1,39 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest'
 import { Hono } from 'hono'
 import { auth } from './auth.js'
+import type { AppVariables } from '../context.js'
+import { testServices, truncateAll, testDb } from '../__tests__/setup.js'
+import bcrypt from 'bcrypt'
 
-vi.mock('../services/auth.js', () => ({
-  login: vi.fn(),
-  register: vi.fn(),
-}))
+const TEST_SECRET = 'test-secret-for-integration'
 
-const { login, register } = await import('../services/auth.js')
-
-const app = new Hono()
-app.route('/api/auth', auth)
+function createTestApp() {
+  const app = new Hono<{ Variables: AppVariables }>()
+  app.use('*', async (c, next) => {
+    c.set('services', testServices)
+    await next()
+  })
+  app.route('/api/auth', auth)
+  return app
+}
 
 describe('POST /api/auth/login', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  const originalSecret = process.env.JWT_SECRET
+  const app = createTestApp()
+
+  beforeAll(() => {
+    process.env.JWT_SECRET = TEST_SECRET
   })
+
+  afterAll(() => {
+    if (originalSecret !== undefined) {
+      process.env.JWT_SECRET = originalSecret
+    } else {
+      delete process.env.JWT_SECRET
+    }
+  })
+
+  beforeEach(() => truncateAll())
 
   it('validates email is required', async () => {
     const res = await app.request('/api/auth/login', {
@@ -42,10 +60,11 @@ describe('POST /api/auth/login', () => {
   })
 
   it('returns token and user on successful login', async () => {
-    vi.mocked(login).mockResolvedValue({
-      token: 'jwt-token',
-      user: { id: 1, email: 'test@test.com', name: 'Test User' },
-    })
+    const passwordHash = await bcrypt.hash('password123', 10)
+    await testDb
+      .insertInto('users')
+      .values({ email: 'test@test.com', name: 'Test User', password_hash: passwordHash })
+      .execute()
 
     const res = await app.request('/api/auth/login', {
       method: 'POST',
@@ -55,12 +74,14 @@ describe('POST /api/auth/login', () => {
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.token).toBe('jwt-token')
-    expect(json.user.id).toBe(1)
+    expect(json.token).toBeDefined()
+    expect(json.user.email).toBe('test@test.com')
   })
 })
 
 describe('POST /api/auth/logout', () => {
+  const app = createTestApp()
+
   it('returns success', async () => {
     const res = await app.request('/api/auth/logout', { method: 'POST' })
 
@@ -71,9 +92,22 @@ describe('POST /api/auth/logout', () => {
 })
 
 describe('POST /api/auth/register', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  const originalSecret = process.env.JWT_SECRET
+  const app = createTestApp()
+
+  beforeAll(() => {
+    process.env.JWT_SECRET = TEST_SECRET
   })
+
+  afterAll(() => {
+    if (originalSecret !== undefined) {
+      process.env.JWT_SECRET = originalSecret
+    } else {
+      delete process.env.JWT_SECRET
+    }
+  })
+
+  beforeEach(() => truncateAll())
 
   it('validates email is required', async () => {
     const res = await app.request('/api/auth/register', {
@@ -112,11 +146,6 @@ describe('POST /api/auth/register', () => {
   })
 
   it('returns token and user on successful registration', async () => {
-    vi.mocked(register).mockResolvedValue({
-      token: 'jwt-token',
-      user: { id: 1, email: 'newuser@test.com', name: 'New User' },
-    })
-
     const res = await app.request('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -125,7 +154,7 @@ describe('POST /api/auth/register', () => {
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.token).toBe('jwt-token')
+    expect(json.token).toBeDefined()
     expect(json.user.name).toBe('New User')
   })
 })

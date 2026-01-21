@@ -1,10 +1,7 @@
 import type { Context, Next } from 'hono'
 import { verify } from 'hono/jwt'
 
-export interface AuthUser {
-  id: number
-  email: string
-}
+export type { AuthUser } from '../context.js'
 
 export async function authMiddleware(c: Context, next: Next) {
   const authHeader = c.req.header('Authorization')

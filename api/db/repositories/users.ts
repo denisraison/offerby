@@ -1,30 +1,33 @@
-import { db } from '../index.js'
+import type { Kysely } from 'kysely'
+import type { Database } from '../types.js'
 
-export const findUserByEmail = (email: string) =>
-  db
-    .selectFrom('users')
-    .select(['id', 'email', 'name', 'password_hash'])
-    .where('email', '=', email)
-    .executeTakeFirst()
+export const createUsersRepository = (database: Kysely<Database>) => ({
+  findByEmail: (email: string) =>
+    database
+      .selectFrom('users')
+      .select(['id', 'email', 'name', 'password_hash'])
+      .where('email', '=', email)
+      .limit(1)
+      .executeTakeFirst(),
 
-export const findUserIdByEmail = (email: string) =>
-  db
-    .selectFrom('users')
-    .select(['id'])
-    .where('email', '=', email)
-    .executeTakeFirst()
+  findIdByEmail: (email: string) =>
+    database
+      .selectFrom('users')
+      .select(['id'])
+      .where('email', '=', email)
+      .limit(1)
+      .executeTakeFirst(),
 
-export const createUser = (data: {
-  email: string
-  name: string
-  passwordHash: string
-}) =>
-  db
-    .insertInto('users')
-    .values({
-      email: data.email,
-      name: data.name,
-      password_hash: data.passwordHash,
-    })
-    .returning(['id', 'email', 'name'])
-    .executeTakeFirstOrThrow()
+  create: (data: { email: string; name: string; passwordHash: string }) =>
+    database
+      .insertInto('users')
+      .values({
+        email: data.email,
+        name: data.name,
+        password_hash: data.passwordHash,
+      })
+      .returning(['id', 'email', 'name'])
+      .executeTakeFirstOrThrow(),
+})
+
+export type UsersRepository = ReturnType<typeof createUsersRepository>

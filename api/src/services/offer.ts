@@ -1,12 +1,7 @@
-import {
-  findOfferById,
-  counterOffer as counterOfferRepo,
-  findPendingOffersForSeller,
-  findPendingOffersForBuyer,
-  findAcceptedOffersForBuyer,
-  acceptOfferWithReservation,
-} from '../../db/repositories/offers.js'
-import { findProductById } from '../../db/repositories/products.js'
+import type { OffersRepository } from '../../db/repositories/offers.js'
+import type { ProductsRepository } from '../../db/repositories/products.js'
+import type { OfferCursor } from '../../db/repositories/offers.js'
+import { VersionConflictError } from '../../db/errors.js'
 import {
   NotFoundError,
   ForbiddenError,
@@ -16,94 +11,127 @@ import {
 
 type ProposedBy = 'buyer' | 'seller'
 
-interface OfferContext {
-  offer: Awaited<ReturnType<typeof findOfferById>>
-  userRole: ProposedBy
+interface OfferServiceDeps {
+  offers: OffersRepository
+  products: ProductsRepository
 }
 
-function validateOfferAction(
-  offer: Awaited<ReturnType<typeof findOfferById>>,
-  userId: number,
-  actionName: string
-): OfferContext {
-  if (!offer) {
-    throw new NotFoundError('Offer not found')
-  }
-
-  if (offer.status !== 'pending') {
-    throw new InvalidStateError('Offer is not pending')
-  }
-
-  if (offer.productStatus === 'sold') {
-    throw new InvalidStateError('Product is already sold')
-  }
-
-  const isBuyer = userId === offer.buyerId
-  const isSeller = userId === offer.sellerId
-  if (!isBuyer && !isSeller) {
-    throw new ForbiddenError(`Not authorised to ${actionName} this offer`)
-  }
-
-  const userRole = isBuyer ? 'buyer' : 'seller'
-  if (offer.proposedBy === userRole) {
-    throw new InvalidStateError(`Cannot ${actionName} your own offer`)
-  }
-
-  return { offer, userRole }
-}
-
-export interface OffersQuery {
+interface OffersQuery {
   status?: string
   seller?: string
   buyer?: string
+  cursor?: OfferCursor
   limit: number
-  offset: number
 }
 
-export async function listOffers(userId: number, query: OffersQuery) {
-  const { status, seller, buyer, limit, offset } = query
+export const createOfferService = ({ offers, products }: OfferServiceDeps) => {
+  type OfferDetail = Awaited<ReturnType<typeof offers.findById>>
 
-  if (status === 'pending') {
-    if (seller === 'me') {
-      return findPendingOffersForSeller(userId, limit, offset)
+  interface OfferContext {
+    offer: OfferDetail
+    userRole: ProposedBy
+  }
+
+  function validateOfferAction(
+    offer: OfferDetail,
+    userId: number,
+    actionName: string
+  ): OfferContext {
+    if (!offer) {
+      throw new NotFoundError('Offer not found')
     }
 
-    if (buyer === 'me') {
-      return findPendingOffersForBuyer(userId, limit, offset)
+    if (offer.status !== 'pending') {
+      throw new InvalidStateError('Offer is not pending')
     }
-  }
 
-  if (status === 'accepted' && buyer === 'me') {
-    return findAcceptedOffersForBuyer(userId, limit, offset)
-  }
-
-  throw new InvalidStateError('Invalid query parameters')
-}
-
-export async function counterOffer(offerId: number, userId: number, amount: number) {
-  const offer = await findOfferById(offerId)
-  const { userRole } = validateOfferAction(offer, userId, 'counter')
-
-  return counterOfferRepo(offerId, offer!.productId, offer!.buyerId, amount, userRole)
-}
-
-export async function acceptOffer(offerId: number, userId: number) {
-  const offer = await findOfferById(offerId)
-  validateOfferAction(offer, userId, 'accept')
-
-  const product = await findProductById(offer!.productId)
-  if (!product) {
-    throw new NotFoundError('Product not found')
-  }
-
-  try {
-    await acceptOfferWithReservation(offerId, offer!.productId, offer!.buyerId, product.version)
-  } catch (err) {
-    if (err instanceof Error && err.message === 'Product version conflict') {
-      throw new ConflictError('Product was modified by another user')
+    if (offer.productStatus === 'sold') {
+      throw new InvalidStateError('Product is already sold')
     }
-    throw err
+
+    const isBuyer = userId === offer.buyerId
+    const isSeller = userId === offer.sellerId
+    if (!isBuyer && !isSeller) {
+      throw new ForbiddenError(`Not authorised to ${actionName} this offer`)
+    }
+
+    const userRole = isBuyer ? 'buyer' : 'seller'
+    if (offer.proposedBy === userRole) {
+      throw new InvalidStateError(`Cannot ${actionName} your own offer`)
+    }
+
+    return { offer, userRole }
   }
 
-  return { success: true, offerId, amount: offer!.amount }
+  function extractPagination<T extends { createdAt: Date; id: number }>(
+    items: T[],
+    limit: number
+  ): { items: T[]; hasMore: boolean; nextCursor?: OfferCursor } {
+    const hasMore = items.length > limit
+    const pageItems = hasMore ? items.slice(0, limit) : items
+    const nextCursor =
+      hasMore && pageItems.length > 0
+        ? {
+            createdAt: pageItems[pageItems.length - 1].createdAt,
+            id: pageItems[pageItems.length - 1].id,
+          }
+        : undefined
+
+    return { items: pageItems, hasMore, nextCursor }
+  }
+
+  return {
+    async listOffers(userId: number, query: OffersQuery) {
+      const { status, seller, buyer, cursor, limit } = query
+
+      if (status === 'pending') {
+        if (seller === 'me') {
+          const results = await offers.findPendingForSeller(userId, cursor, limit)
+          return extractPagination(results, limit)
+        }
+
+        if (buyer === 'me') {
+          const results = await offers.findPendingForBuyer(userId, cursor, limit)
+          return extractPagination(results, limit)
+        }
+      }
+
+      if (status === 'accepted' && buyer === 'me') {
+        const results = await offers.findAcceptedForBuyer(userId, cursor, limit)
+        return extractPagination(results, limit)
+      }
+
+      throw new InvalidStateError('Invalid query parameters')
+    },
+
+    async counterOffer(offerId: number, userId: number, amount: number) {
+      const offer = await offers.findById(offerId)
+      const { userRole } = validateOfferAction(offer, userId, 'counter')
+
+      return offers.counter(offerId, offer!.productId, offer!.buyerId, amount, userRole)
+    },
+
+    async acceptOffer(offerId: number, userId: number) {
+      const offer = await offers.findById(offerId)
+      validateOfferAction(offer, userId, 'accept')
+
+      const product = await products.findById(offer!.productId)
+      if (!product) {
+        throw new NotFoundError('Product not found')
+      }
+
+      try {
+        await offers.acceptWithReservation(offerId, offer!.productId, offer!.buyerId, product.version)
+      } catch (err) {
+        if (err instanceof VersionConflictError) {
+          throw new ConflictError('Product was modified by another user')
+        }
+        throw err
+      }
+
+      return { success: true, offerId, amount: offer!.amount }
+    },
+  }
 }
+
+export type OfferService = ReturnType<typeof createOfferService>

@@ -1,17 +1,10 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest'
 import bcrypt from 'bcrypt'
-import { login, register } from './auth.js'
+import { testDb, testRepos, testServices, truncateAll, closeTestDb } from '../__tests__/setup.js'
 import { UnauthorisedError, AlreadyExistsError } from './errors.js'
 
-vi.mock('../../db/repositories/users.js', () => ({
-  findUserByEmail: vi.fn(),
-  findUserIdByEmail: vi.fn(),
-  createUser: vi.fn(),
-}))
-
-const { findUserByEmail, findUserIdByEmail, createUser } = await import('../../db/repositories/users.js')
-
 const TEST_SECRET = 'test-secret-key-for-testing-purposes'
+const authService = testServices.auth
 
 describe('login', () => {
   const originalSecret = process.env.JWT_SECRET
@@ -26,17 +19,14 @@ describe('login', () => {
     } else {
       delete process.env.JWT_SECRET
     }
+    return closeTestDb()
   })
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
 
   it('throws UnauthorisedError for non-existent user', async () => {
-    vi.mocked(findUserByEmail).mockResolvedValue(undefined)
-
     try {
-      await login('nonexistent@test.com', 'password123')
+      await authService.login('nonexistent@test.com', 'password123')
       expect.fail('Should have thrown')
     } catch (err) {
       expect(err).toBeInstanceOf(UnauthorisedError)
@@ -46,15 +36,13 @@ describe('login', () => {
 
   it('throws UnauthorisedError for invalid password', async () => {
     const passwordHash = await bcrypt.hash('correctpassword', 10)
-    vi.mocked(findUserByEmail).mockResolvedValue({
-      id: 1,
-      email: 'test@test.com',
-      name: 'Test User',
-      password_hash: passwordHash,
-    })
+    await testDb
+      .insertInto('users')
+      .values({ email: 'test@test.com', name: 'Test User', password_hash: passwordHash })
+      .execute()
 
     try {
-      await login('test@test.com', 'wrongpassword')
+      await authService.login('test@test.com', 'wrongpassword')
       expect.fail('Should have thrown')
     } catch (err) {
       expect(err).toBeInstanceOf(UnauthorisedError)
@@ -64,21 +52,16 @@ describe('login', () => {
 
   it('returns token and user on successful login', async () => {
     const passwordHash = await bcrypt.hash('password123', 10)
-    vi.mocked(findUserByEmail).mockResolvedValue({
-      id: 1,
-      email: 'test@test.com',
-      name: 'Test User',
-      password_hash: passwordHash,
-    })
+    await testDb
+      .insertInto('users')
+      .values({ email: 'test@test.com', name: 'Test User', password_hash: passwordHash })
+      .execute()
 
-    const result = await login('test@test.com', 'password123')
+    const result = await authService.login('test@test.com', 'password123')
 
     expect(result.token).toBeDefined()
-    expect(result.user).toEqual({
-      id: 1,
-      email: 'test@test.com',
-      name: 'Test User',
-    })
+    expect(result.user.email).toBe('test@test.com')
+    expect(result.user.name).toBe('Test User')
   })
 })
 
@@ -97,15 +80,16 @@ describe('register', () => {
     }
   })
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
 
   it('throws AlreadyExistsError when email already exists', async () => {
-    vi.mocked(findUserIdByEmail).mockResolvedValue({ id: 1 })
+    await testDb
+      .insertInto('users')
+      .values({ email: 'existing@test.com', name: 'Existing', password_hash: 'hash' })
+      .execute()
 
     try {
-      await register('existing@test.com', 'password123', 'Test User')
+      await authService.register('existing@test.com', 'password123', 'Test User')
       expect.fail('Should have thrown')
     } catch (err) {
       expect(err).toBeInstanceOf(AlreadyExistsError)
@@ -114,20 +98,15 @@ describe('register', () => {
   })
 
   it('returns token and user on successful registration', async () => {
-    vi.mocked(findUserIdByEmail).mockResolvedValue(undefined)
-    vi.mocked(createUser).mockResolvedValue({
-      id: 1,
-      email: 'newuser@test.com',
-      name: 'New User',
-    })
-
-    const result = await register('newuser@test.com', 'password123', 'New User')
+    const result = await authService.register('newuser@test.com', 'password123', 'New User')
 
     expect(result.token).toBeDefined()
-    expect(result.user).toEqual({
-      id: 1,
-      email: 'newuser@test.com',
-      name: 'New User',
-    })
+    expect(result.user.email).toBe('newuser@test.com')
+    expect(result.user.name).toBe('New User')
+
+    const savedUser = await testRepos.users.findByEmail('newuser@test.com')
+    expect(savedUser).toBeDefined()
+    const passwordValid = await bcrypt.compare('password123', savedUser!.password_hash)
+    expect(passwordValid).toBe(true)
   })
 })

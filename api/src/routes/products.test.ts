@@ -1,37 +1,25 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Hono } from 'hono'
-import { sign } from 'hono/jwt'
 import { products } from './products.js'
+import type { AppVariables } from '../context.js'
+import { testDb, testServices, truncateAll } from '../__tests__/setup.js'
+import { createTestUser, createTestProduct, createTestOffer, acceptTestOffer, makeToken } from '../__tests__/factories.js'
 
-vi.mock('../services/product.js', () => ({
-  listAvailableProducts: vi.fn(),
-  listSellerProducts: vi.fn(),
-  getProductDetails: vi.fn(),
-  createProduct: vi.fn(),
-  createInitialOffer: vi.fn(),
-  purchaseProduct: vi.fn(),
-}))
+const TEST_SECRET = 'test-secret-for-integration'
 
-const {
-  listAvailableProducts,
-  listSellerProducts,
-  getProductDetails,
-  createProduct,
-  createInitialOffer,
-  purchaseProduct,
-} = await import('../services/product.js')
-
-const TEST_SECRET = 'test-secret-key'
-const USER_ID = 1
-
-const makeToken = (userId: number) =>
-  sign({ sub: userId, email: `user${userId}@test.com` }, TEST_SECRET, 'HS256')
-
-const app = new Hono()
-app.route('/api/products', products)
+function createTestApp() {
+  const app = new Hono<{ Variables: AppVariables }>()
+  app.use('*', async (c, next) => {
+    c.set('services', testServices)
+    await next()
+  })
+  app.route('/api/products', products)
+  return app
+}
 
 describe('GET /api/products', () => {
   const originalSecret = process.env.JWT_SECRET
+  const app = createTestApp()
 
   beforeAll(() => {
     process.env.JWT_SECRET = TEST_SECRET
@@ -45,9 +33,7 @@ describe('GET /api/products', () => {
     }
   })
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
 
   it('returns 401 without auth token', async () => {
     const res = await app.request('/api/products')
@@ -55,40 +41,42 @@ describe('GET /api/products', () => {
   })
 
   it('returns products from service', async () => {
-    vi.mocked(listAvailableProducts).mockResolvedValue([
-      { id: 1, name: 'Product 1', price: 1000, status: 'available', image: null, sellerName: 'Seller' },
-    ])
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    await createTestProduct(seller.id, 'Product 1', 1000)
 
-    const token = await makeToken(USER_ID)
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const token = await makeToken(buyer.id, buyer.email)
+
     const res = await app.request('/api/products', {
       headers: { Authorization: `Bearer ${token}` },
     })
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json).toHaveLength(1)
-    expect(json[0].id).toBe(1)
+    expect(json.items).toHaveLength(1)
+    expect(json.items[0].name).toBe('Product 1')
   })
 
   it('returns seller products when seller=me', async () => {
-    vi.mocked(listSellerProducts).mockResolvedValue([
-      { id: 2, name: 'My Product', price: 2000, status: 'available', image: null, offerCount: 0 },
-    ])
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    await createTestProduct(seller.id, 'My Product', 2000)
 
-    const token = await makeToken(USER_ID)
+    const token = await makeToken(seller.id, seller.email)
+
     const res = await app.request('/api/products?seller=me', {
       headers: { Authorization: `Bearer ${token}` },
     })
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json).toHaveLength(1)
-    expect(json[0].id).toBe(2)
+    expect(json.items).toHaveLength(1)
+    expect(json.items[0].name).toBe('My Product')
   })
 })
 
 describe('GET /api/products/:id', () => {
   const originalSecret = process.env.JWT_SECRET
+  const app = createTestApp()
 
   beforeAll(() => {
     process.env.JWT_SECRET = TEST_SECRET
@@ -102,9 +90,7 @@ describe('GET /api/products/:id', () => {
     }
   })
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
 
   it('returns 401 without auth token', async () => {
     const res = await app.request('/api/products/1')
@@ -112,31 +98,19 @@ describe('GET /api/products/:id', () => {
   })
 
   it('returns product details', async () => {
-    vi.mocked(getProductDetails).mockResolvedValue({
-      id: 10,
-      name: 'Test',
-      description: null,
-      price: 10000,
-      status: 'available',
-      reservedBy: null,
-      version: 1,
-      createdAt: new Date(),
-      sellerId: 2,
-      sellerName: 'Seller',
-      images: [],
-      offers: [],
-      canPurchase: true,
-      canMakeInitialOffer: true,
-    })
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const product = await createTestProduct(seller.id, 'Test', 10000)
 
-    const token = await makeToken(USER_ID)
-    const res = await app.request('/api/products/10', {
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const token = await makeToken(buyer.id, buyer.email)
+
+    const res = await app.request(`/api/products/${product.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.id).toBe(10)
+    expect(json.id).toBe(product.id)
     expect(json.name).toBe('Test')
     expect(json.canPurchase).toBe(true)
   })
@@ -144,6 +118,7 @@ describe('GET /api/products/:id', () => {
 
 describe('POST /api/products', () => {
   const originalSecret = process.env.JWT_SECRET
+  const app = createTestApp()
 
   beforeAll(() => {
     process.env.JWT_SECRET = TEST_SECRET
@@ -157,9 +132,7 @@ describe('POST /api/products', () => {
     }
   })
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
 
   it('returns 401 without auth token', async () => {
     const res = await app.request('/api/products', {
@@ -171,7 +144,9 @@ describe('POST /api/products', () => {
   })
 
   it('validates name is required', async () => {
-    const token = await makeToken(USER_ID)
+    const user = await createTestUser('User', 'user@test.com')
+    const token = await makeToken(user.id, user.email)
+
     const res = await app.request('/api/products', {
       method: 'POST',
       headers: {
@@ -185,7 +160,9 @@ describe('POST /api/products', () => {
   })
 
   it('validates price must be positive', async () => {
-    const token = await makeToken(USER_ID)
+    const user = await createTestUser('User', 'user@test.com')
+    const token = await makeToken(user.id, user.email)
+
     const res = await app.request('/api/products', {
       method: 'POST',
       headers: {
@@ -201,7 +178,9 @@ describe('POST /api/products', () => {
   })
 
   it('validates price rejects negative', async () => {
-    const token = await makeToken(USER_ID)
+    const user = await createTestUser('User', 'user@test.com')
+    const token = await makeToken(user.id, user.email)
+
     const res = await app.request('/api/products', {
       method: 'POST',
       headers: {
@@ -217,26 +196,27 @@ describe('POST /api/products', () => {
   })
 
   it('creates product and returns id', async () => {
-    vi.mocked(createProduct).mockResolvedValue({ id: 42 })
+    const user = await createTestUser('User', 'user@test.com')
+    const token = await makeToken(user.id, user.email)
 
-    const token = await makeToken(USER_ID)
     const res = await app.request('/api/products', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ name: 'Test Product', price: 5000, imageIds: [1, 2] }),
+      body: JSON.stringify({ name: 'Test Product', price: 5000 }),
     })
 
     expect(res.status).toBe(201)
     const json = await res.json()
-    expect(json.id).toBe(42)
+    expect(json.id).toBeDefined()
   })
 })
 
 describe('POST /api/products/:id/offers', () => {
   const originalSecret = process.env.JWT_SECRET
+  const app = createTestApp()
 
   beforeAll(() => {
     process.env.JWT_SECRET = TEST_SECRET
@@ -250,9 +230,7 @@ describe('POST /api/products/:id/offers', () => {
     }
   })
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
 
   it('returns 401 without auth token', async () => {
     const res = await app.request('/api/products/1/offers', {
@@ -264,16 +242,13 @@ describe('POST /api/products/:id/offers', () => {
   })
 
   it('creates offer and returns it', async () => {
-    vi.mocked(createInitialOffer).mockResolvedValue({
-      id: 100,
-      amount: 5000,
-      proposedBy: 'buyer',
-      status: 'pending',
-      createdAt: new Date(),
-    })
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
 
-    const token = await makeToken(USER_ID)
-    const res = await app.request('/api/products/10/offers', {
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const token = await makeToken(buyer.id, buyer.email)
+
+    const res = await app.request(`/api/products/${product.id}/offers`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -284,13 +259,100 @@ describe('POST /api/products/:id/offers', () => {
 
     expect(res.status).toBe(201)
     const json = await res.json()
-    expect(json.id).toBe(100)
+    expect(json.id).toBeDefined()
     expect(json.amount).toBe(5000)
+  })
+
+  it('prevents duplicate offers from same buyer under concurrent requests', async () => {
+    const iterations = 10
+
+    for (let i = 0; i < iterations; i++) {
+      await truncateAll()
+      const seller = await createTestUser('Seller', `seller${i}@test.com`)
+      const buyer = await createTestUser('Buyer', `buyer${i}@test.com`)
+      const product = await createTestProduct(seller.id, 'Test Product', 10000)
+      const buyerToken = await makeToken(buyer.id, buyer.email)
+
+      const [res1, res2] = await Promise.all([
+        app.request(`/api/products/${product.id}/offers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${buyerToken}`,
+          },
+          body: JSON.stringify({ amount: 5000 }),
+        }),
+        app.request(`/api/products/${product.id}/offers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${buyerToken}`,
+          },
+          body: JSON.stringify({ amount: 6000 }),
+        }),
+      ])
+
+      const statuses = [res1.status, res2.status].sort((a, b) => a - b)
+      expect(statuses[0]).toBe(201)
+      expect(statuses[1]).toBeGreaterThanOrEqual(400)
+
+      const offerCount = await testDb
+        .selectFrom('counter_offers')
+        .where('product_id', '=', product.id)
+        .where('buyer_id', '=', buyer.id)
+        .where('status', '=', 'pending')
+        .select(testDb.fn.count('id').as('count'))
+        .executeTakeFirst()
+      expect(Number(offerCount?.count)).toBe(1)
+    }
+  })
+
+  it('allows concurrent offers from different buyers', async () => {
+    const iterations = 10
+
+    for (let i = 0; i < iterations; i++) {
+      await truncateAll()
+      const seller = await createTestUser('Seller', `seller${i}@test.com`)
+      const buyer1 = await createTestUser('Buyer1', `buyer1-${i}@test.com`)
+      const buyer2 = await createTestUser('Buyer2', `buyer2-${i}@test.com`)
+      const product = await createTestProduct(seller.id, 'Test Product', 10000)
+
+      const [res1, res2] = await Promise.all([
+        app.request(`/api/products/${product.id}/offers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${await makeToken(buyer1.id, buyer1.email)}`,
+          },
+          body: JSON.stringify({ amount: 5000 }),
+        }),
+        app.request(`/api/products/${product.id}/offers`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${await makeToken(buyer2.id, buyer2.email)}`,
+          },
+          body: JSON.stringify({ amount: 6000 }),
+        }),
+      ])
+
+      expect(res1.status).toBe(201)
+      expect(res2.status).toBe(201)
+
+      const offerCount = await testDb
+        .selectFrom('counter_offers')
+        .where('product_id', '=', product.id)
+        .where('status', '=', 'pending')
+        .select(testDb.fn.count('id').as('count'))
+        .executeTakeFirst()
+      expect(Number(offerCount?.count)).toBe(2)
+    }
   })
 })
 
 describe('POST /api/products/:id/purchase', () => {
   const originalSecret = process.env.JWT_SECRET
+  const app = createTestApp()
 
   beforeAll(() => {
     process.env.JWT_SECRET = TEST_SECRET
@@ -304,9 +366,7 @@ describe('POST /api/products/:id/purchase', () => {
     }
   })
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => truncateAll())
 
   it('returns 401 without auth token', async () => {
     const res = await app.request('/api/products/1/purchase', {
@@ -318,13 +378,13 @@ describe('POST /api/products/:id/purchase', () => {
   })
 
   it('purchases product and returns transaction', async () => {
-    vi.mocked(purchaseProduct).mockResolvedValue({
-      transactionId: 1,
-      finalPrice: 10000,
-    })
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
 
-    const token = await makeToken(USER_ID)
-    const res = await app.request('/api/products/10/purchase', {
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const token = await makeToken(buyer.id, buyer.email)
+
+    const res = await app.request(`/api/products/${product.id}/purchase`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -335,29 +395,79 @@ describe('POST /api/products/:id/purchase', () => {
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.transactionId).toBe(1)
+    expect(json.transactionId).toBeDefined()
     expect(json.finalPrice).toBe(10000)
   })
 
   it('purchases with offer price', async () => {
-    vi.mocked(purchaseProduct).mockResolvedValue({
-      transactionId: 2,
-      finalPrice: 7500,
-    })
+    const seller = await createTestUser('Seller', 'seller@test.com')
+    const product = await createTestProduct(seller.id, 'Widget', 10000)
 
-    const token = await makeToken(USER_ID)
-    const res = await app.request('/api/products/10/purchase', {
+    const buyer = await createTestUser('Buyer', 'buyer@test.com')
+    const offer = await createTestOffer(product.id, buyer.id, 7500)
+    await acceptTestOffer(offer.id, seller.id)
+    const token = await makeToken(buyer.id, buyer.email)
+
+    const res = await app.request(`/api/products/${product.id}/purchase`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ offerId: 100 }),
+      body: JSON.stringify({ offerId: offer.id }),
     })
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.transactionId).toBe(2)
+    expect(json.transactionId).toBeDefined()
     expect(json.finalPrice).toBe(7500)
+  })
+
+  it('prevents double-purchase under concurrent requests', async () => {
+    const iterations = 10
+    let raceTriggered = 0
+
+    for (let i = 0; i < iterations; i++) {
+      await truncateAll()
+      const seller = await createTestUser('Seller', `seller${i}@test.com`)
+      const buyer1 = await createTestUser('Buyer1', `buyer1-${i}@test.com`)
+      const buyer2 = await createTestUser('Buyer2', `buyer2-${i}@test.com`)
+      const product = await createTestProduct(seller.id, 'Test Product', 10000)
+
+      const [res1, res2] = await Promise.all([
+        app.request(`/api/products/${product.id}/purchase`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${await makeToken(buyer1.id, buyer1.email)}`,
+          },
+          body: JSON.stringify({}),
+        }),
+        app.request(`/api/products/${product.id}/purchase`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${await makeToken(buyer2.id, buyer2.email)}`,
+          },
+          body: JSON.stringify({}),
+        }),
+      ])
+
+      const statuses = [res1.status, res2.status].sort((a, b) => a - b)
+
+      expect(statuses[0]).toBe(200)
+      expect([400, 409]).toContain(statuses[1])
+
+      if (statuses[1] === 409) raceTriggered++
+
+      const txCount = await testDb
+        .selectFrom('transactions')
+        .where('product_id', '=', product.id)
+        .select(testDb.fn.count('id').as('count'))
+        .executeTakeFirst()
+      expect(Number(txCount?.count)).toBe(1)
+    }
+
+    console.log(`Race triggered ${raceTriggered}/${iterations} iterations`)
   })
 })
