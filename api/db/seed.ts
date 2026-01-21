@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import { Kysely, PostgresDialect } from 'kysely'
 import pg from 'pg'
 import type { Database } from './types.js'

@@ -25,5 +25,4 @@ export const createRepositories = (database: Kysely<Database>): Repositories => 
   transactions: createTransactionsRepository(database),
 })
 
-// Default instance using the production database
 export const repositories = createRepositories(db)

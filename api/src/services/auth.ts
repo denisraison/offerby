@@ -1,5 +1,5 @@
 import { sign } from 'hono/jwt'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import type { UsersRepository } from '../../db/repositories/users.js'
 import { UnauthorisedError, AlreadyExistsError, ServerError } from './errors.js'
 
