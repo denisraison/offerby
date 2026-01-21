@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import AppButton from '@/components/base/AppButton.vue'
+import AppInput from '@/components/base/AppInput.vue'
 import { formatCurrency } from '@/utils/currency'
 import type { Offer } from '@/types/api'
 
@@ -8,11 +9,16 @@ const props = defineProps<{
   offers: Offer[]
   askingPrice: number
   submitting: boolean
+  counteringOfferId?: number | null
+  counterAmount?: string
 }>()
 
 const emit = defineEmits<{
   counter: [buyerId: number, offerId: number]
   accept: [offerId: number]
+  submitCounter: []
+  cancelCounter: []
+  'update:counterAmount': [value: string]
 }>()
 
 interface BuyerNegotiation {
@@ -136,7 +142,24 @@ const getProgressWidth = (amount: number) => {
           <p class="prompt-text">
             {{ negotiation.buyerName }} offered <strong>{{ formatCurrency(negotiation.latestOffer.amount) }}</strong>
           </p>
-          <div class="prompt-actions">
+          <div v-if="counteringOfferId === negotiation.latestOffer.id" class="counter-form">
+            <AppInput
+              :model-value="counterAmount"
+              type="number"
+              placeholder="Enter your counter"
+              label="Your counter offer"
+              @update:model-value="emit('update:counterAmount', $event)"
+            />
+            <div class="counter-actions">
+              <AppButton variant="ghost" size="sm" :disabled="submitting" @click="emit('cancelCounter')">
+                Cancel
+              </AppButton>
+              <AppButton variant="primary" size="sm" :disabled="submitting" @click="emit('submitCounter')">
+                {{ submitting ? 'Sending...' : 'Send Counter' }}
+              </AppButton>
+            </div>
+          </div>
+          <div v-else class="prompt-actions">
             <AppButton
               variant="outline"
               :disabled="submitting"
@@ -438,5 +461,17 @@ const getProgressWidth = (amount: number) => {
 .prompt-actions {
   display: flex;
   gap: var(--space-sm);
+}
+
+.counter-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.counter-actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
 }
 </style>

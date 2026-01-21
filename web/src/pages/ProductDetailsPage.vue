@@ -107,19 +107,21 @@ const handleStartCounter = (offerId?: number) => {
 
 const handleCounter = async () => {
   const offerId = selectedOfferId.value ?? myPendingOffer.value?.id
-  if (!counterAmount.value || !offerId) return
+  if (!counterAmount.value || !offerId || !product.value) return
   const amount = parseFloat(counterAmount.value)
   if (isNaN(amount) || amount <= 0) return
 
   submitting.value = true
   try {
     await counterOffer(offerId, amount)
-    router.push('/products')
+    showCounterForm.value = false
+    counterAmount.value = ''
+    selectedOfferId.value = null
+    await loadProduct(product.value.id)
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to counter offer'
   } finally {
     submitting.value = false
-    selectedOfferId.value = null
   }
 }
 
@@ -140,6 +142,12 @@ const handleAccept = async (offerId?: number) => {
 
 const handleSellerCounter = (_buyerId: number, offerId: number) => {
   handleStartCounter(offerId)
+}
+
+const handleCancelCounter = () => {
+  showCounterForm.value = false
+  counterAmount.value = ''
+  selectedOfferId.value = null
 }
 
 const handlePurchase = async () => {
@@ -226,33 +234,17 @@ const handlePurchase = async () => {
         </template>
 
         <template v-else-if="isSeller">
-          <div v-if="showCounterForm" class="counter-modal">
-            <div class="counter-modal-content">
-              <h3>Counter Offer</h3>
-              <AppInput
-                v-model="counterAmount"
-                type="number"
-                placeholder="Enter counter amount"
-                label="Your counter"
-              />
-              <div class="counter-actions">
-                <AppButton variant="ghost" @click="showCounterForm = false; selectedOfferId = null" :disabled="submitting">
-                  Cancel
-                </AppButton>
-                <AppButton variant="primary" @click="handleCounter" :disabled="submitting">
-                  {{ submitting ? 'Sending...' : 'Send Counter' }}
-                </AppButton>
-              </div>
-            </div>
-          </div>
-
           <SellerOffersSection
             v-if="hasOffers"
             :offers="allOffers"
             :asking-price="product.price"
             :submitting="submitting"
+            :countering-offer-id="showCounterForm ? selectedOfferId : null"
+            v-model:counter-amount="counterAmount"
             @counter="handleSellerCounter"
             @accept="handleAccept"
+            @submit-counter="handleCounter"
+            @cancel-counter="handleCancelCounter"
           />
           <div v-else class="no-offers">
             <p>No offers yet</p>
@@ -280,26 +272,6 @@ const handlePurchase = async () => {
             </div>
           </div>
 
-          <div v-else-if="showCounterForm" class="offer-form-section">
-            <h2 class="section-title">Counter Offer</h2>
-            <div class="offer-form">
-              <AppInput
-                v-model="counterAmount"
-                type="number"
-                placeholder="Enter counter amount"
-                label="Your counter"
-              />
-              <div class="offer-actions">
-                <AppButton variant="ghost" @click="showCounterForm = false" :disabled="submitting">
-                  Cancel
-                </AppButton>
-                <AppButton variant="primary" @click="handleCounter" :disabled="submitting">
-                  {{ submitting ? 'Sending...' : 'Send Counter' }}
-                </AppButton>
-              </div>
-            </div>
-          </div>
-
           <template v-else>
             <BuyerNegotiationSection
               v-if="authStore.user"
@@ -308,9 +280,13 @@ const handlePurchase = async () => {
               :asking-price="product.price"
               :submitting="submitting"
               :can-make-initial-offer="product.canMakeInitialOffer"
+              :is-countering="showCounterForm"
+              v-model:counter-amount="counterAmount"
               @make-offer="handleMakeOffer"
               @counter="handleStartCounter()"
               @accept="handleAccept()"
+              @submit-counter="handleCounter"
+              @cancel-counter="handleCancelCounter"
             />
 
             <div v-if="acceptedOffer" class="purchase-section">
@@ -519,27 +495,6 @@ const handlePurchase = async () => {
 .sold-message {
   font-size: 0.9375rem;
   color: var(--charcoal-soft);
-}
-
-.counter-modal {
-  background: var(--cream);
-  border: 1px solid var(--cream-dark);
-  border-radius: 16px;
-  padding: var(--space-lg);
-  margin-bottom: var(--space-lg);
-}
-
-.counter-modal-content h3 {
-  margin: 0 0 var(--space-md);
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  color: var(--charcoal);
-}
-
-.counter-actions {
-  display: flex;
-  gap: var(--space-sm);
-  margin-top: var(--space-md);
 }
 
 .no-offers {
