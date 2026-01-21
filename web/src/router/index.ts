@@ -7,7 +7,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/dashboard',
+      redirect: '/products',
     },
     {
       path: '/login',
@@ -58,7 +58,7 @@ router.beforeEach((to, _from, next) => {
   }
 
   if (to.meta.guest && isAuthenticated) {
-    next({ name: 'dashboard' })
+    next({ name: 'products' })
     return
   }
 

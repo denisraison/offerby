@@ -11,7 +11,7 @@ Buyers can make offers, sellers can counter or accept. Back and forth until some
 
 ## Quick Start
 
-Requires Docker and Node.js 20+.
+Requires Docker and Node.js 22+.
 
 ```bash
 make dev
@@ -39,6 +39,28 @@ make dev      # Start everything
 make stop     # Stop servers
 make clean    # Stop servers and remove database
 ```
+
+## AWS Deployment
+
+The Dockerfile works but isn't optimised for AWS yet. It's configured for Fly.io with PGlite (embedded Postgres).
+
+For AWS deployment on a proper server, you'd want to:
+
+1. **Use external Postgres.** Spin up RDS and set `DATABASE_URL` instead of `USE_PGLITE=true`. The code already supports both, just flip the env var.
+
+2. **Push to ECR.** Standard Docker workflow:
+   ```bash
+   docker build -t offerby .
+   aws ecr get-login-password --region ap-southeast-2 | docker login --username AWS --password-stdin <account>.dkr.ecr.ap-southeast-2.amazonaws.com
+   docker tag offerby:latest <account>.dkr.ecr.ap-southeast-2.amazonaws.com/offerby:latest
+   docker push <account>.dkr.ecr.ap-southeast-2.amazonaws.com/offerby:latest
+   ```
+
+3. **Run on ECS/Fargate or App Runner.** The container exposes port 3000. Health check is at `/api/health`.
+
+4. **Fix uploads.** Right now images go to `./uploads/`. For multi-instance deployments you'd need S3 or mount EFS.
+
+Not set up for Lambda. The container runs a long-lived HTTP server, not a function handler.
 
 ## Architecture
 

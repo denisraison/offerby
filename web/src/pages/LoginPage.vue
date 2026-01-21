@@ -27,7 +27,7 @@ const handleLogin = async () => {
   try {
     await authStore.login(email.value, password.value)
     const redirect = route.query.redirect as string | undefined
-    const safeRedirect = redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/dashboard'
+    const safeRedirect = redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/products'
     router.push(safeRedirect)
   } catch (err) {
     if (err instanceof ApiError) {
