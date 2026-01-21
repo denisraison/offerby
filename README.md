@@ -4,7 +4,7 @@ A buy/sell marketplace with counter-offer negotiation.
 
 Buyers can make offers, sellers can counter or accept. Back and forth until someone says yes.
 
-**Live demo:** https://offerby.fly.dev/ (may take a moment to wake up)
+**Live demo:** https://offerby.fly.dev/ (may take a moment to wake up... hang in there)
 
 I considered running this on Bun for better performance, but stuck with Node to follow the spec. Would probably use Bun if I was going to run it myself! :))
 
