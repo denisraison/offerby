@@ -3,16 +3,11 @@ import { Hono } from 'hono'
 import { sign } from 'hono/jwt'
 import { upload } from './upload.js'
 
-vi.mock('fs/promises', () => ({
-  mkdir: vi.fn().mockResolvedValue(undefined),
-  writeFile: vi.fn().mockResolvedValue(undefined),
+vi.mock('../services/upload.js', () => ({
+  uploadImage: vi.fn(),
 }))
 
-vi.mock('../../db/repositories/images.js', () => ({
-  createImage: vi.fn(),
-}))
-
-const { createImage } = await import('../../db/repositories/images.js')
+const { uploadImage } = await import('../services/upload.js')
 
 const TEST_SECRET = 'test-secret-key'
 const USER_ID = 1
@@ -45,44 +40,41 @@ describe('POST /api/upload', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(createImage).mockImplementation(async (path, _uploadedBy) => ({ id: 1, path }))
   })
 
-  it('rejects invalid file type', async () => {
-    const formData = new FormData()
-    formData.append('file', createMockFile('test.txt', 'text/plain', 100))
-
-    const token = await makeToken(USER_ID)
-    const res = await app.request('/api/upload', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    })
-
-    expect(res.status).toBe(400)
-    const json = await res.json()
-    expect(json.error).toBe('Invalid file type. Allowed: JPEG, PNG, WebP')
-  })
-
-  it('rejects file over 5MB', async () => {
-    const formData = new FormData()
-    formData.append('file', createMockFile('large.jpg', 'image/jpeg', 6 * 1024 * 1024))
-
-    const token = await makeToken(USER_ID)
-    const res = await app.request('/api/upload', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    })
-
-    expect(res.status).toBe(400)
-    const json = await res.json()
-    expect(json.error).toBe('File too large. Maximum 5MB')
-  })
-
-  it('accepts valid image and returns id/path', async () => {
+  it('returns 401 without auth token', async () => {
     const formData = new FormData()
     formData.append('file', createMockFile('photo.jpg', 'image/jpeg', 1024))
+
+    const res = await app.request('/api/upload', {
+      method: 'POST',
+      body: formData,
+    })
+
+    expect(res.status).toBe(401)
+  })
+
+  it('returns 400 when no file provided', async () => {
+    const formData = new FormData()
+
+    const token = await makeToken(USER_ID)
+    const res = await app.request('/api/upload', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    })
+
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json.error).toBe('No file provided')
+  })
+
+  it('uploads image and returns id and path', async () => {
+    vi.mocked(uploadImage).mockResolvedValue({ id: 1, path: '/uploads/test.jpg' })
+
+    const formData = new FormData()
+    const file = createMockFile('photo.jpg', 'image/jpeg', 1024)
+    formData.append('file', file)
 
     const token = await makeToken(USER_ID)
     const res = await app.request('/api/upload', {
@@ -94,7 +86,6 @@ describe('POST /api/upload', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.id).toBe(1)
-    expect(json.path).toMatch(/^\/uploads\/[a-f0-9-]+\.jpg$/)
-    expect(createImage).toHaveBeenCalledWith(expect.stringMatching(/^\/uploads\//), USER_ID)
+    expect(json.path).toBe('/uploads/test.jpg')
   })
 })

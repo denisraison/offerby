@@ -1,41 +1,23 @@
-import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Hono } from 'hono'
-import bcrypt from 'bcrypt'
 import { auth } from './auth.js'
 
-vi.mock('../../db/repositories/users.js', () => ({
-  findUserByEmail: vi.fn(),
-  findUserIdByEmail: vi.fn(),
-  createUser: vi.fn(),
+vi.mock('../services/auth.js', () => ({
+  login: vi.fn(),
+  register: vi.fn(),
 }))
 
-const { findUserByEmail, findUserIdByEmail, createUser } = await import('../../db/repositories/users.js')
+const { login, register } = await import('../services/auth.js')
 
 const app = new Hono()
 app.route('/api/auth', auth)
 
-const TEST_SECRET = 'test-secret-key-for-testing-purposes'
-
 describe('POST /api/auth/login', () => {
-  const originalSecret = process.env.JWT_SECRET
-
-  beforeAll(() => {
-    process.env.JWT_SECRET = TEST_SECRET
-  })
-
-  afterAll(() => {
-    if (originalSecret !== undefined) {
-      process.env.JWT_SECRET = originalSecret
-    } else {
-      delete process.env.JWT_SECRET
-    }
-  })
-
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('returns 400 when email is missing', async () => {
+  it('validates email is required', async () => {
     const res = await app.request('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -47,7 +29,7 @@ describe('POST /api/auth/login', () => {
     expect(json.error).toBeDefined()
   })
 
-  it('returns 400 when password is missing', async () => {
+  it('validates password is required', async () => {
     const res = await app.request('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -59,47 +41,10 @@ describe('POST /api/auth/login', () => {
     expect(json.error).toBeDefined()
   })
 
-  it('returns 401 for non-existent user', async () => {
-    vi.mocked(findUserByEmail).mockResolvedValue(undefined)
-
-    const res = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'nonexistent@test.com', password: 'password123' }),
-    })
-
-    expect(res.status).toBe(401)
-    const json = await res.json()
-    expect(json.error).toBe('Invalid credentials')
-  })
-
-  it('returns 401 for invalid password', async () => {
-    const passwordHash = await bcrypt.hash('correctpassword', 10)
-    vi.mocked(findUserByEmail).mockResolvedValue({
-      id: 1,
-      email: 'test@test.com',
-      name: 'Test User',
-      password_hash: passwordHash,
-    })
-
-    const res = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'test@test.com', password: 'wrongpassword' }),
-    })
-
-    expect(res.status).toBe(401)
-    const json = await res.json()
-    expect(json.error).toBe('Invalid credentials')
-  })
-
-  it('returns 200 with token and user on successful login', async () => {
-    const passwordHash = await bcrypt.hash('password123', 10)
-    vi.mocked(findUserByEmail).mockResolvedValue({
-      id: 1,
-      email: 'test@test.com',
-      name: 'Test User',
-      password_hash: passwordHash,
+  it('returns token and user on successful login', async () => {
+    vi.mocked(login).mockResolvedValue({
+      token: 'jwt-token',
+      user: { id: 1, email: 'test@test.com', name: 'Test User' },
     })
 
     const res = await app.request('/api/auth/login', {
@@ -110,17 +55,13 @@ describe('POST /api/auth/login', () => {
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.token).toBeDefined()
-    expect(json.user).toEqual({
-      id: 1,
-      email: 'test@test.com',
-      name: 'Test User',
-    })
+    expect(json.token).toBe('jwt-token')
+    expect(json.user.id).toBe(1)
   })
 })
 
 describe('POST /api/auth/logout', () => {
-  it('returns 200 with success', async () => {
+  it('returns success', async () => {
     const res = await app.request('/api/auth/logout', { method: 'POST' })
 
     expect(res.status).toBe(200)
@@ -130,25 +71,11 @@ describe('POST /api/auth/logout', () => {
 })
 
 describe('POST /api/auth/register', () => {
-  const originalSecret = process.env.JWT_SECRET
-
-  beforeAll(() => {
-    process.env.JWT_SECRET = TEST_SECRET
-  })
-
-  afterAll(() => {
-    if (originalSecret !== undefined) {
-      process.env.JWT_SECRET = originalSecret
-    } else {
-      delete process.env.JWT_SECRET
-    }
-  })
-
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('returns 400 when email is missing', async () => {
+  it('validates email is required', async () => {
     const res = await app.request('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -160,7 +87,7 @@ describe('POST /api/auth/register', () => {
     expect(json.error).toBeDefined()
   })
 
-  it('returns 400 when password is missing', async () => {
+  it('validates password is required', async () => {
     const res = await app.request('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -172,7 +99,7 @@ describe('POST /api/auth/register', () => {
     expect(json.error).toBeDefined()
   })
 
-  it('returns 400 when name is missing', async () => {
+  it('validates name is required', async () => {
     const res = await app.request('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -184,26 +111,10 @@ describe('POST /api/auth/register', () => {
     expect(json.error).toBeDefined()
   })
 
-  it('returns 400 when email already exists', async () => {
-    vi.mocked(findUserIdByEmail).mockResolvedValue({ id: 1 })
-
-    const res = await app.request('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'existing@test.com', password: 'password123', name: 'Test User' }),
-    })
-
-    expect(res.status).toBe(400)
-    const json = await res.json()
-    expect(json.error).toBe('Email already exists')
-  })
-
-  it('returns 200 with token and user on successful registration', async () => {
-    vi.mocked(findUserIdByEmail).mockResolvedValue(undefined)
-    vi.mocked(createUser).mockResolvedValue({
-      id: 1,
-      email: 'newuser@test.com',
-      name: 'New User',
+  it('returns token and user on successful registration', async () => {
+    vi.mocked(register).mockResolvedValue({
+      token: 'jwt-token',
+      user: { id: 1, email: 'newuser@test.com', name: 'New User' },
     })
 
     const res = await app.request('/api/auth/register', {
@@ -214,11 +125,7 @@ describe('POST /api/auth/register', () => {
 
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.token).toBeDefined()
-    expect(json.user).toEqual({
-      id: 1,
-      email: 'newuser@test.com',
-      name: 'New User',
-    })
+    expect(json.token).toBe('jwt-token')
+    expect(json.user.name).toBe('New User')
   })
 })

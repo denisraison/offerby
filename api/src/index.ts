@@ -34,12 +34,15 @@ app.use(
 
 app.use('/uploads/*', serveStatic({ root: './' }))
 
-app.route('/api/health', health)
-app.route('/api/auth', auth)
-app.route('/api/products', products)
-app.route('/api/offers', offers)
-app.route('/api/upload', upload)
-app.route('/api/transactions', transactions)
+const routes = app
+  .route('/api/health', health)
+  .route('/api/auth', auth)
+  .route('/api/products', products)
+  .route('/api/offers', offers)
+  .route('/api/upload', upload)
+  .route('/api/transactions', transactions)
+
+export type AppType = typeof routes
 
 const port = parseInt(process.env.PORT || '3000', 10)
 

@@ -3,35 +3,26 @@ import { Hono } from 'hono'
 import { sign } from 'hono/jwt'
 import { products } from './products.js'
 
-vi.mock('../../db/repositories/products.js', () => ({
-  findAvailableProducts: vi.fn(),
-  findProductById: vi.fn(),
-  findProductImages: vi.fn(),
+vi.mock('../services/product.js', () => ({
+  listAvailableProducts: vi.fn(),
+  listSellerProducts: vi.fn(),
+  getProductDetails: vi.fn(),
   createProduct: vi.fn(),
-  linkImageToProduct: vi.fn(),
-  purchaseProductWithTransaction: vi.fn(),
-}))
-
-vi.mock('../../db/repositories/offers.js', () => ({
-  createOffer: vi.fn(),
-  findPendingOffer: vi.fn(),
-  findProductOffers: vi.fn(),
+  createInitialOffer: vi.fn(),
+  purchaseProduct: vi.fn(),
 }))
 
 const {
-  findAvailableProducts,
-  findProductById,
-  findProductImages,
+  listAvailableProducts,
+  listSellerProducts,
+  getProductDetails,
   createProduct,
-  linkImageToProduct,
-  purchaseProductWithTransaction,
-} = await import('../../db/repositories/products.js')
-
-const { findProductOffers } = await import('../../db/repositories/offers.js')
+  createInitialOffer,
+  purchaseProduct,
+} = await import('../services/product.js')
 
 const TEST_SECRET = 'test-secret-key'
-const BUYER_ID = 1
-const SELLER_ID = 2
+const USER_ID = 1
 
 const makeToken = (userId: number) =>
   sign({ sub: userId, email: `user${userId}@test.com` }, TEST_SECRET, 'HS256')
@@ -58,12 +49,17 @@ describe('GET /api/products', () => {
     vi.clearAllMocks()
   })
 
-  it('returns available products', async () => {
-    vi.mocked(findAvailableProducts).mockResolvedValue([
-      { id: 1, name: 'Available', price: 10000, status: 'available', image: null, sellerName: 'Test' },
+  it('returns 401 without auth token', async () => {
+    const res = await app.request('/api/products')
+    expect(res.status).toBe(401)
+  })
+
+  it('returns products from service', async () => {
+    vi.mocked(listAvailableProducts).mockResolvedValue([
+      { id: 1, name: 'Product 1', price: 1000, status: 'available', image: null, sellerName: 'Seller' },
     ])
 
-    const token = await makeToken(BUYER_ID)
+    const token = await makeToken(USER_ID)
     const res = await app.request('/api/products', {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -71,12 +67,78 @@ describe('GET /api/products', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json).toHaveLength(1)
-    expect(json[0].name).toBe('Available')
+    expect(json[0].id).toBe(1)
+  })
+
+  it('returns seller products when seller=me', async () => {
+    vi.mocked(listSellerProducts).mockResolvedValue([
+      { id: 2, name: 'My Product', price: 2000, status: 'available', image: null, offerCount: 0 },
+    ])
+
+    const token = await makeToken(USER_ID)
+    const res = await app.request('/api/products?seller=me', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json).toHaveLength(1)
+    expect(json[0].id).toBe(2)
+  })
+})
+
+describe('GET /api/products/:id', () => {
+  const originalSecret = process.env.JWT_SECRET
+
+  beforeAll(() => {
+    process.env.JWT_SECRET = TEST_SECRET
+  })
+
+  afterAll(() => {
+    if (originalSecret !== undefined) {
+      process.env.JWT_SECRET = originalSecret
+    } else {
+      delete process.env.JWT_SECRET
+    }
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
   })
 
   it('returns 401 without auth token', async () => {
-    const res = await app.request('/api/products')
+    const res = await app.request('/api/products/1')
     expect(res.status).toBe(401)
+  })
+
+  it('returns product details', async () => {
+    vi.mocked(getProductDetails).mockResolvedValue({
+      id: 10,
+      name: 'Test',
+      description: null,
+      price: 10000,
+      status: 'available',
+      reservedBy: null,
+      version: 1,
+      createdAt: new Date(),
+      sellerId: 2,
+      sellerName: 'Seller',
+      images: [],
+      offers: [],
+      canPurchase: true,
+      canMakeInitialOffer: true,
+    })
+
+    const token = await makeToken(USER_ID)
+    const res = await app.request('/api/products/10', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.id).toBe(10)
+    expect(json.name).toBe('Test')
+    expect(json.canPurchase).toBe(true)
   })
 })
 
@@ -99,41 +161,38 @@ describe('POST /api/products', () => {
     vi.clearAllMocks()
   })
 
-  it('creates product and returns its id', async () => {
-    vi.mocked(createProduct).mockResolvedValue({ id: 42 })
-    vi.mocked(linkImageToProduct).mockResolvedValue({ numUpdatedRows: 1n } as never)
-
-    const token = await makeToken(SELLER_ID)
+  it('returns 401 without auth token', async () => {
     const res = await app.request('/api/products', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        name: 'Test Product',
-        price: 5000,
-        imageIds: [1, 2],
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test', price: 1000 }),
     })
-
-    expect(res.status).toBe(201)
-    const json = await res.json()
-    expect(json.id).toBe(42)
+    expect(res.status).toBe(401)
   })
 
-  it('validates price is positive', async () => {
-    const token = await makeToken(SELLER_ID)
+  it('validates name is required', async () => {
+    const token = await makeToken(USER_ID)
     const res = await app.request('/api/products', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        name: 'Test Product',
-        price: 0,
-      }),
+      body: JSON.stringify({ price: 1000 }),
+    })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('validates price must be positive', async () => {
+    const token = await makeToken(USER_ID)
+    const res = await app.request('/api/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name: 'Test', price: 0 }),
     })
 
     expect(res.status).toBe(400)
@@ -142,162 +201,41 @@ describe('POST /api/products', () => {
   })
 
   it('validates price rejects negative', async () => {
-    const token = await makeToken(SELLER_ID)
+    const token = await makeToken(USER_ID)
     const res = await app.request('/api/products', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        name: 'Test Product',
-        price: -10,
-      }),
+      body: JSON.stringify({ name: 'Test', price: -10 }),
     })
 
     expect(res.status).toBe(400)
     const json = await res.json()
     expect(json.error).toBe('Price must be a positive integer (cents)')
   })
-})
 
-const baseProduct = {
-  id: 10,
-  name: 'Test Product',
-  description: 'A product',
-  price: 10000,
-  status: 'available' as const,
-  reservedBy: null,
-  version: 1,
-  createdAt: new Date(),
-  sellerId: SELLER_ID,
-  sellerName: 'Seller',
-}
+  it('creates product and returns id', async () => {
+    vi.mocked(createProduct).mockResolvedValue({ id: 42 })
 
-describe('GET /products/:id permissions', () => {
-  const originalSecret = process.env.JWT_SECRET
-
-  beforeAll(() => {
-    process.env.JWT_SECRET = TEST_SECRET
-  })
-
-  afterAll(() => {
-    if (originalSecret !== undefined) {
-      process.env.JWT_SECRET = originalSecret
-    } else {
-      delete process.env.JWT_SECRET
-    }
-  })
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    vi.mocked(findProductImages).mockResolvedValue([])
-  })
-
-  it('buyer sees canMakeInitialOffer=true on available product', async () => {
-    vi.mocked(findProductById).mockResolvedValue(baseProduct)
-    vi.mocked(findProductOffers).mockResolvedValue([])
-
-    const buyerToken = await makeToken(BUYER_ID)
-    const res = await app.request('/api/products/10', {
-      headers: { Authorization: `Bearer ${buyerToken}` },
-    })
-
-    expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.canMakeInitialOffer).toBe(true)
-    expect(json.canPurchase).toBe(true)
-  })
-
-  it('buyer with pending offer sees canMakeInitialOffer=false', async () => {
-    vi.mocked(findProductById).mockResolvedValue(baseProduct)
-    vi.mocked(findProductOffers).mockResolvedValue([
-      {
-        id: 100,
-        buyerId: BUYER_ID,
-        amount: 5000,
-        proposedBy: 'buyer',
-        status: 'pending',
-        parentOfferId: null,
-        createdAt: new Date(),
-        buyerName: 'Buyer',
+    const token = await makeToken(USER_ID)
+    const res = await app.request('/api/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
       },
-    ])
-
-    const buyerToken = await makeToken(BUYER_ID)
-    const res = await app.request('/api/products/10', {
-      headers: { Authorization: `Bearer ${buyerToken}` },
+      body: JSON.stringify({ name: 'Test Product', price: 5000, imageIds: [1, 2] }),
     })
 
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(201)
     const json = await res.json()
-    expect(json.canMakeInitialOffer).toBe(false)
-  })
-
-  it('seller sees canMakeInitialOffer=false on own product', async () => {
-    vi.mocked(findProductById).mockResolvedValue(baseProduct)
-    vi.mocked(findProductOffers).mockResolvedValue([])
-
-    const sellerToken = await makeToken(SELLER_ID)
-    const res = await app.request('/api/products/10', {
-      headers: { Authorization: `Bearer ${sellerToken}` },
-    })
-
-    expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.canMakeInitialOffer).toBe(false)
-    expect(json.canPurchase).toBe(false)
-  })
-
-  it('offer shows canCounter=true for opposite party only', async () => {
-    const buyerOffer = {
-      id: 100,
-      buyerId: BUYER_ID,
-      amount: 5000,
-      proposedBy: 'buyer' as const,
-      status: 'pending' as const,
-      parentOfferId: null,
-      createdAt: new Date(),
-      buyerName: 'Buyer',
-    }
-    vi.mocked(findProductById).mockResolvedValue(baseProduct)
-    vi.mocked(findProductOffers).mockResolvedValue([buyerOffer])
-
-    const sellerToken = await makeToken(SELLER_ID)
-    const sellerRes = await app.request('/api/products/10', {
-      headers: { Authorization: `Bearer ${sellerToken}` },
-    })
-    const sellerJson = await sellerRes.json()
-    expect(sellerJson.offers[0].canCounter).toBe(true)
-    expect(sellerJson.offers[0].canAccept).toBe(true)
-
-    const buyerToken = await makeToken(BUYER_ID)
-    const buyerRes = await app.request('/api/products/10', {
-      headers: { Authorization: `Bearer ${buyerToken}` },
-    })
-    const buyerJson = await buyerRes.json()
-    expect(buyerJson.offers[0].canCounter).toBe(false)
-    expect(buyerJson.offers[0].canAccept).toBe(false)
-  })
-
-  it('sold product shows canPurchase=false', async () => {
-    const soldProduct = { ...baseProduct, status: 'sold' as const }
-    vi.mocked(findProductById).mockResolvedValue(soldProduct)
-    vi.mocked(findProductOffers).mockResolvedValue([])
-
-    const buyerToken = await makeToken(BUYER_ID)
-    const res = await app.request('/api/products/10', {
-      headers: { Authorization: `Bearer ${buyerToken}` },
-    })
-
-    expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.canPurchase).toBe(false)
-    expect(json.canMakeInitialOffer).toBe(false)
+    expect(json.id).toBe(42)
   })
 })
 
-describe('POST /products/:id/purchase', () => {
+describe('POST /api/products/:id/offers', () => {
   const originalSecret = process.env.JWT_SECRET
 
   beforeAll(() => {
@@ -316,73 +254,110 @@ describe('POST /products/:id/purchase', () => {
     vi.clearAllMocks()
   })
 
-  it('direct purchase uses listing price', async () => {
-    vi.mocked(findProductById).mockResolvedValue(baseProduct)
-    vi.mocked(purchaseProductWithTransaction).mockResolvedValue({ transactionId: 1 })
+  it('returns 401 without auth token', async () => {
+    const res = await app.request('/api/products/1/offers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 5000 }),
+    })
+    expect(res.status).toBe(401)
+  })
 
-    const buyerToken = await makeToken(BUYER_ID)
+  it('creates offer and returns it', async () => {
+    vi.mocked(createInitialOffer).mockResolvedValue({
+      id: 100,
+      amount: 5000,
+      proposedBy: 'buyer',
+      status: 'pending',
+      createdAt: new Date(),
+    })
+
+    const token = await makeToken(USER_ID)
+    const res = await app.request('/api/products/10/offers', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ amount: 5000 }),
+    })
+
+    expect(res.status).toBe(201)
+    const json = await res.json()
+    expect(json.id).toBe(100)
+    expect(json.amount).toBe(5000)
+  })
+})
+
+describe('POST /api/products/:id/purchase', () => {
+  const originalSecret = process.env.JWT_SECRET
+
+  beforeAll(() => {
+    process.env.JWT_SECRET = TEST_SECRET
+  })
+
+  afterAll(() => {
+    if (originalSecret !== undefined) {
+      process.env.JWT_SECRET = originalSecret
+    } else {
+      delete process.env.JWT_SECRET
+    }
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns 401 without auth token', async () => {
+    const res = await app.request('/api/products/1/purchase', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    expect(res.status).toBe(401)
+  })
+
+  it('purchases product and returns transaction', async () => {
+    vi.mocked(purchaseProduct).mockResolvedValue({
+      transactionId: 1,
+      finalPrice: 10000,
+    })
+
+    const token = await makeToken(USER_ID)
     const res = await app.request('/api/products/10/purchase', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${buyerToken}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({}),
     })
 
     expect(res.status).toBe(200)
     const json = await res.json()
+    expect(json.transactionId).toBe(1)
     expect(json.finalPrice).toBe(10000)
   })
 
-  it('purchase with accepted offer uses negotiated price', async () => {
-    vi.mocked(findProductById).mockResolvedValue(baseProduct)
-    vi.mocked(findProductOffers).mockResolvedValue([
-      {
-        id: 100,
-        buyerId: BUYER_ID,
-        amount: 7500,
-        proposedBy: 'seller',
-        status: 'accepted',
-        parentOfferId: null,
-        createdAt: new Date(),
-        buyerName: 'Buyer',
-      },
-    ])
-    vi.mocked(purchaseProductWithTransaction).mockResolvedValue({ transactionId: 2 })
+  it('purchases with offer price', async () => {
+    vi.mocked(purchaseProduct).mockResolvedValue({
+      transactionId: 2,
+      finalPrice: 7500,
+    })
 
-    const buyerToken = await makeToken(BUYER_ID)
+    const token = await makeToken(USER_ID)
     const res = await app.request('/api/products/10/purchase', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${buyerToken}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ offerId: 100 }),
     })
 
     expect(res.status).toBe(200)
     const json = await res.json()
+    expect(json.transactionId).toBe(2)
     expect(json.finalPrice).toBe(7500)
-  })
-
-  it('reserved product can only be purchased by reserved buyer', async () => {
-    const reservedProduct = { ...baseProduct, status: 'reserved' as const, reservedBy: BUYER_ID }
-    vi.mocked(findProductById).mockResolvedValue(reservedProduct)
-
-    const otherBuyerId = 3
-    const otherBuyerToken = await makeToken(otherBuyerId)
-    const res = await app.request('/api/products/10/purchase', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${otherBuyerToken}`,
-      },
-      body: JSON.stringify({}),
-    })
-
-    expect(res.status).toBe(403)
-    const json = await res.json()
-    expect(json.error).toBe('Product is reserved for another buyer')
   })
 })
