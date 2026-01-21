@@ -61,7 +61,7 @@ const allOffers = computed(() => {
 })
 
 const pendingOffer = computed(() =>
-  allOffers.value.find((o) => o.status === 'pending')
+  [...allOffers.value].reverse().find((o) => o.status === 'pending')
 )
 
 const acceptedOffer = computed(() =>
