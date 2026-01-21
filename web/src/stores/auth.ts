@@ -65,13 +65,9 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('user', JSON.stringify(response.user))
   }
 
-  async function logout(): Promise<void> {
-    try {
-      await api.post('/auth/logout')
-    } catch {
-      // Ignore errors on logout
-    }
+  function logout(): void {
     clearStorage()
+    window.location.reload()
   }
 
   function checkAuth(): boolean {

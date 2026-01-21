@@ -16,8 +16,5 @@ const auth = new Hono<{ Variables: AppVariables }>()
     const result = await authService.register(email, password, name)
     return c.json(result)
   })
-  .post('/logout', (c) => {
-    return c.json({ success: true })
-  })
 
 export { auth }

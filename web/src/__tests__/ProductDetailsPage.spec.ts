@@ -163,7 +163,7 @@ describe('ProductDetailsPage', () => {
       mockGetProduct.mockResolvedValue(product)
       mockCounterOffer.mockResolvedValue({ id: 2, amount: 7500 })
 
-      const { wrapper, router } = await mountPage()
+      const { wrapper } = await mountPage()
       await flushPromises()
 
       const counterButton = wrapper.findAll('button').find(b => b.text() === 'Counter')
@@ -188,7 +188,7 @@ describe('ProductDetailsPage', () => {
       mockGetProduct.mockResolvedValue(product)
       mockAcceptOffer.mockResolvedValue({ success: true, offerId: 1, amount: 5000 })
 
-      const { wrapper, router } = await mountPage()
+      const { wrapper } = await mountPage()
       await flushPromises()
 
       const acceptButton = wrapper.findAll('button').find(b => b.text() === 'Accept Offer')
@@ -236,7 +236,7 @@ describe('ProductDetailsPage', () => {
       mockGetProduct.mockResolvedValue(product)
       mockCreateOffer.mockResolvedValue({ id: 1, amount: 8000 })
 
-      const { wrapper, router } = await mountPage()
+      const { wrapper } = await mountPage()
       await flushPromises()
 
       const offerButton = wrapper.findAll('button').find(b => b.text() === 'Make an Offer')
@@ -256,7 +256,7 @@ describe('ProductDetailsPage', () => {
       mockGetProduct.mockResolvedValue(product)
       mockPurchaseProduct.mockResolvedValue({ transactionId: 1, finalPrice: 10000 })
 
-      const { wrapper, router } = await mountPage()
+      const { wrapper } = await mountPage()
       await flushPromises()
 
       const buyButton = wrapper.findAll('button').find(b => b.text().includes('Buy Now'))
@@ -312,7 +312,7 @@ describe('ProductDetailsPage', () => {
       mockGetProduct.mockResolvedValue(product)
       mockAcceptOffer.mockResolvedValue({ success: true, offerId: 1, amount: 7500 })
 
-      const { wrapper, router } = await mountPage()
+      const { wrapper } = await mountPage()
       await flushPromises()
 
       const acceptButton = wrapper.findAll('button').find(b => b.text() === 'Accept Offer')
@@ -352,7 +352,7 @@ describe('ProductDetailsPage', () => {
       mockGetProduct.mockResolvedValue(product)
       mockPurchaseProduct.mockResolvedValue({ transactionId: 1, finalPrice: 7500 })
 
-      const { wrapper, router } = await mountPage()
+      const { wrapper } = await mountPage()
       await flushPromises()
 
       const buyButton = wrapper.findAll('button').find(b => b.text().includes('Buy Now'))

@@ -9,7 +9,7 @@ import NegotiationTimeline from '@/components/domain/NegotiationTimeline.vue'
 import { getProduct } from '@/api/products'
 import { createOffer, counterOffer, acceptOffer, purchaseProduct } from '@/api/offers'
 import { formatCurrency } from '@/utils/currency'
-import type { ProductDetail, Offer } from '@/types/api'
+import type { ProductDetail } from '@/types/api'
 import { useAuthStore } from '@/stores/auth'
 import { API_BASE_URL } from '@/api/client'
 

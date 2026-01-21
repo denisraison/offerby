@@ -79,18 +79,6 @@ describe('POST /api/auth/login', () => {
   })
 })
 
-describe('POST /api/auth/logout', () => {
-  const app = createTestApp()
-
-  it('returns success', async () => {
-    const res = await app.request('/api/auth/logout', { method: 'POST' })
-
-    expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.success).toBe(true)
-  })
-})
-
 describe('POST /api/auth/register', () => {
   const originalSecret = process.env.JWT_SECRET
   const app = createTestApp()
