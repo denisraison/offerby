@@ -1,1 +1,1 @@
-CREATE DATABASE linkby_test;
+CREATE DATABASE offerby_test;

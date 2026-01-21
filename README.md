@@ -109,6 +109,4 @@ This is a 2-day coding challenge. I optimised for demonstrating architecture and
 
 **Local file uploads.** Images go to `./uploads/`. Works for demo, won't scale. Would use S3 or similar.
 
-**No transaction pagination.** Sellers with thousands of sales get them all at once. Pagination exists elsewhere, just didn't wire it here.
-
 They're my conscious scope cuts. The architecture, testing approach, and business logic are the things worth evaluating I would think.

@@ -1,4 +1,10 @@
-.PHONY: dev setup db migrate seed api web clean install stop
+.PHONY: dev setup db migrate seed api web clean install stop deploy setup-fly logs ssh secrets
+
+FLY_APP := offerby
+
+# =============================================================================
+# Development
+# =============================================================================
 
 dev: install setup
 	@echo "Starting API server..."
@@ -41,3 +47,30 @@ stop:
 clean: stop
 	docker compose down -v
 	@echo "Removed Docker containers and volumes"
+
+# =============================================================================
+# Fly.io Deployment
+# =============================================================================
+
+setup-fly:
+	@echo "Creating Fly app..."
+	fly apps create $(FLY_APP) || true
+	@echo "Creating volume for data..."
+	fly volumes create offerby_data --region syd --size 1 -a $(FLY_APP) -y || true
+	@echo "Setup complete. Set secrets with 'make secrets' then deploy with 'make deploy'"
+
+deploy:
+	fly deploy --local-only
+
+logs:
+	fly logs -a $(FLY_APP)
+
+ssh:
+	fly ssh console -a $(FLY_APP)
+
+secrets:
+	@echo "Set your JWT_SECRET:"
+	@echo "  fly secrets set JWT_SECRET=your-secret-here -a $(FLY_APP)"
+	@echo ""
+	@echo "Generate a secure secret with:"
+	@echo "  openssl rand -base64 32"

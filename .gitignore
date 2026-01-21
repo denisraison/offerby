@@ -19,6 +19,9 @@ dist/
 *.db-wal
 *.db-shm
 
+# PGlite data
+data/
+
 # Scratch space
 scratch/
 

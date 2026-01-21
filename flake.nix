@@ -1,5 +1,5 @@
 {
-  description = "linkby environment";
+  description = "offerby environment";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
@@ -17,6 +17,8 @@
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             nodejs_24
+            gnumake
+            flyctl
           ];
         };
       }

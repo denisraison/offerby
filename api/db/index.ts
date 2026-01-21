@@ -1,11 +1,19 @@
 import { Kysely, PostgresDialect } from 'kysely'
-import pg from 'pg'
 import type { Database } from './types.js'
 
-const dialect = new PostgresDialect({
-  pool: new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
-  }),
-})
+async function createDb(): Promise<Kysely<Database>> {
+  if (process.env.USE_PGLITE === 'true') {
+    const { createPgliteDb } = await import('./pglite.js')
+    return createPgliteDb()
+  }
 
-export const db = new Kysely<Database>({ dialect })
+  const pg = await import('pg')
+  const dialect = new PostgresDialect({
+    pool: new pg.default.Pool({
+      connectionString: process.env.DATABASE_URL,
+    }),
+  })
+  return new Kysely<Database>({ dialect })
+}
+
+export const db = await createDb()

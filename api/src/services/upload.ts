@@ -6,7 +6,7 @@ import type { ImagesRepository } from '../../db/repositories/images.js'
 import { InvalidStateError } from './errors.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const UPLOADS_DIR = join(__dirname, '..', '..', 'uploads')
+const UPLOADS_DIR = process.env.UPLOADS_DIR || join(__dirname, '..', '..', 'uploads')
 
 const MAX_SIZE = 5 * 1024 * 1024
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']

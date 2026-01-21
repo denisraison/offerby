@@ -1,0 +1,25 @@
+app = 'offerby'
+primary_region = 'syd'
+
+[env]
+  USE_PGLITE = 'true'
+  PGLITE_DATA_DIR = '/app/data/pglite'
+  UPLOADS_DIR = '/app/data/uploads'
+  NODE_ENV = 'production'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[mounts]
+  source = 'offerby_data'
+  destination = '/app/data'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
