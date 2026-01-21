@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api, ApiError } from '@/api/client'
 
-export interface User {
+interface User {
   id: number
   email: string
   name: string

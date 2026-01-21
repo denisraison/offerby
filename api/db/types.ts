@@ -1,7 +1,7 @@
 import type { ColumnType, Generated } from 'kysely'
 
-export type ProductStatus = 'available' | 'reserved' | 'sold'
-export type OfferStatus = 'pending' | 'countered' | 'accepted'
+type ProductStatus = 'available' | 'reserved' | 'sold'
+type OfferStatus = 'pending' | 'countered' | 'accepted'
 export type ProposedBy = 'buyer' | 'seller'
 
 export interface UsersTable {

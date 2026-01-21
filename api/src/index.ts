@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { HTTPException } from 'hono/http-exception'
 import { logger } from 'hono/logger'
 import { health } from './routes/health.js'
 import { auth } from './routes/auth.js'
@@ -10,11 +11,19 @@ import { products } from './routes/products.js'
 import { offers } from './routes/offers.js'
 import { upload } from './routes/upload.js'
 import { transactions } from './routes/transactions.js'
-import { errorMiddleware } from './middleware/error.js'
 
 const app = new Hono()
 
-app.use('*', errorMiddleware)
+app.notFound((c) => c.json({ error: 'Not found' }, 404))
+
+app.onError((err, c) => {
+  if (err instanceof HTTPException) {
+    return c.json({ error: err.message }, err.status)
+  }
+  console.error('Unhandled error:', err)
+  return c.json({ error: 'Internal server error' }, 500)
+})
+
 app.use('*', logger())
 app.use(
   '*',

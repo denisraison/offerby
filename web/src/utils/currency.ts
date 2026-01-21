@@ -7,6 +7,3 @@ export const formatCurrency = (cents: number): string =>
 
 export const dollarsToCents = (dollars: number): number =>
   Math.round(dollars * 100)
-
-export const centsToDollars = (cents: number): number =>
-  cents / 100

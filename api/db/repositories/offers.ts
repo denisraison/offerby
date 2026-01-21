@@ -1,5 +1,5 @@
 import { db } from '../index.js'
-import type { OfferStatus, ProposedBy } from '../types.js'
+import type { ProposedBy } from '../types.js'
 
 export const createOffer = (productId: number, buyerId: number, amount: number) =>
   db
@@ -91,13 +91,6 @@ export const counterOffer = async (
       .executeTakeFirstOrThrow()
   })
 }
-
-export const updateOfferStatus = (id: number, status: OfferStatus) =>
-  db
-    .updateTable('counter_offers')
-    .set({ status })
-    .where('id', '=', id)
-    .execute()
 
 export const countPendingOffersByProducts = (productIds: number[]) =>
   db

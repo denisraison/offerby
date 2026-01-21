@@ -1,17 +1,14 @@
 import { Hono } from 'hono'
 import { sign } from 'hono/jwt'
 import bcrypt from 'bcrypt'
+import { zValidator } from '../lib/validation.js'
+import { loginSchema, registerSchema } from '../schemas/index.js'
 import { findUserByEmail, findUserIdByEmail, createUser } from '../../db/repositories/users.js'
 
 const auth = new Hono()
 
-auth.post('/login', async (c) => {
-  const body = await c.req.json().catch(() => ({}))
-  const { email, password } = body
-
-  if (!email || !password) {
-    return c.json({ error: 'Email and password are required' }, 400)
-  }
+auth.post('/login', zValidator('json', loginSchema), async (c) => {
+  const { email, password } = c.req.valid('json')
 
   const user = await findUserByEmail(email)
   if (!user) {
@@ -46,19 +43,8 @@ auth.post('/login', async (c) => {
   })
 })
 
-auth.post('/register', async (c) => {
-  const body = await c.req.json().catch(() => ({}))
-  const { email, password, name } = body
-
-  if (!email) {
-    return c.json({ error: 'Email is required' }, 400)
-  }
-  if (!password) {
-    return c.json({ error: 'Password is required' }, 400)
-  }
-  if (!name) {
-    return c.json({ error: 'Name is required' }, 400)
-  }
+auth.post('/register', zValidator('json', registerSchema), async (c) => {
+  const { email, password, name } = c.req.valid('json')
 
   const existingUser = await findUserIdByEmail(email)
   if (existingUser) {

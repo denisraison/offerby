@@ -1,5 +1,4 @@
 import { db } from '../index.js'
-import type { ProductStatus } from '../types.js'
 
 export const findAvailableProducts = (limit = 50, offset = 0) =>
   db
@@ -81,27 +80,6 @@ export const linkImageToProduct = (
     .where('product_id', 'is', null)
     .where('uploaded_by', '=', uploaderId)
     .executeTakeFirst()
-
-export const updateProductStatus = async (
-  id: number,
-  status: ProductStatus,
-  expectedVersion: number,
-  reservedBy?: number | null
-) => {
-  const result = await db
-    .updateTable('products')
-    .set({
-      status,
-      reserved_by: reservedBy ?? null,
-      version: expectedVersion + 1,
-      updated_at: new Date(),
-    })
-    .where('id', '=', id)
-    .where('version', '=', expectedVersion)
-    .executeTakeFirst()
-
-  return result.numUpdatedRows > 0n
-}
 
 export const findProductsBySeller = (sellerId: number, limit = 50, offset = 0) =>
   db

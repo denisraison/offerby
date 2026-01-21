@@ -44,7 +44,7 @@ describe('POST /api/auth/login', () => {
 
     expect(res.status).toBe(400)
     const json = await res.json()
-    expect(json.error).toBe('Email and password are required')
+    expect(json.error).toBeDefined()
   })
 
   it('returns 400 when password is missing', async () => {
@@ -56,7 +56,7 @@ describe('POST /api/auth/login', () => {
 
     expect(res.status).toBe(400)
     const json = await res.json()
-    expect(json.error).toBe('Email and password are required')
+    expect(json.error).toBeDefined()
   })
 
   it('returns 401 for non-existent user', async () => {
@@ -157,7 +157,7 @@ describe('POST /api/auth/register', () => {
 
     expect(res.status).toBe(400)
     const json = await res.json()
-    expect(json.error).toBe('Email is required')
+    expect(json.error).toBeDefined()
   })
 
   it('returns 400 when password is missing', async () => {
@@ -169,7 +169,7 @@ describe('POST /api/auth/register', () => {
 
     expect(res.status).toBe(400)
     const json = await res.json()
-    expect(json.error).toBe('Password is required')
+    expect(json.error).toBeDefined()
   })
 
   it('returns 400 when name is missing', async () => {
@@ -181,7 +181,7 @@ describe('POST /api/auth/register', () => {
 
     expect(res.status).toBe(400)
     const json = await res.json()
-    expect(json.error).toBe('Name is required')
+    expect(json.error).toBeDefined()
   })
 
   it('returns 400 when email already exists', async () => {

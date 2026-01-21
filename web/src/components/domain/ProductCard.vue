@@ -2,7 +2,7 @@
 import AppBadge from '@/components/base/AppBadge.vue'
 import { formatCurrency } from '@/utils/currency'
 
-export type ProductStatus = 'available' | 'negotiating' | 'reserved' | 'sold'
+type ProductStatus = 'available' | 'negotiating' | 'reserved' | 'sold'
 
 defineProps<{
   name: string
